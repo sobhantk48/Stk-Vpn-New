@@ -13,5 +13,5 @@ dependencyResolutionManagement {
         // flatDir دیگر نیاز نیست
     }
 }
-rootProject.name = "V2raySTK"
+rootProject.name = "stkvpn"
 include(":app")

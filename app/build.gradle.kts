@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.v2ray.app"
+    namespace = "com.stkvpn.app"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.v2ray.app"
+        applicationId = "com.stkvpn.app"
         minSdk = 24
         targetSdk = 34
         versionCode = 1

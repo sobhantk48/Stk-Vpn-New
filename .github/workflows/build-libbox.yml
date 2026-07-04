@@ -1,7 +1,7 @@
 name: Build libbox.aar
 
 on:
-  workflow_dispatch:  # اجرای دستی
+  workflow_dispatch:
 
 jobs:
   build:

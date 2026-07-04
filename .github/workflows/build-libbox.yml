@@ -1,11 +1,9 @@
-name: Build libbox (Cronet Disabled)
+name: Build libbox (Cronet Disabled - Final)
 
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
-      - master
+    branches: [ main, master ]
 
 jobs:
   build:
@@ -24,81 +22,71 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            git wget unzip build-essential pkg-config
+          sudo apt-get install -y git wget unzip build-essential pkg-config
+
+      - name: Install Android SDK
+        run: |
+          mkdir -p "$HOME/android-sdk/cmdline-tools"
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip -O cmdline-tools.zip
+          unzip -q cmdline-tools.zip
+          mv cmdline-tools "$HOME/android-sdk/cmdline-tools/latest"
+          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          yes | "$HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager" --licenses
+          "$HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Download Android NDK r26d
         run: |
-          wget -q \
-            https://dl.google.com/android/repository/android-ndk-r26d-linux.zip
-
+          wget -q https://dl.google.com/android/repository/android-ndk-r26d-linux.zip
           unzip -q android-ndk-r26d-linux.zip
-
-          # ✅ پیدا کردن نام واقعی پوشه استخراج شده
-          NDK_DIR=$(find . -maxdepth 1 -type d -name "android-ndk-r26*" | head -1)
-          echo "NDK directory: $NDK_DIR"
-
-          # ✅ تنظیم ANDROID_NDK_HOME با نام واقعی
-          echo "ANDROID_NDK_HOME=$GITHUB_WORKSPACE/$NDK_DIR" >> $GITHUB_ENV
+          NDK_PATH=$(find "$GITHUB_WORKSPACE" -maxdepth 1 -type d -name "android-ndk*" | head -n1)
+          echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
           echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
 
-          # ✅ نمایش محتویات برای تأیید
-          ls -la "$NDK_DIR"
-
-      - name: Verify NDK
+      - name: Verify NDK & SDK
         run: |
-          echo "NDK Path: $ANDROID_NDK_HOME"
+          echo "NDK: $ANDROID_NDK_HOME"
           ls -la "$ANDROID_NDK_HOME"
-          "$ANDROID_NDK_HOME"/toolchains/llvm/prebuilt/linux-x86_64/bin/clang --version
+          echo "SDK: $ANDROID_HOME"
+          ls -la "$ANDROID_HOME"
 
       - name: Clone sing-box
         run: |
-          git clone \
-            --depth=1 \
-            https://github.com/SagerNet/sing-box.git
+          git clone --depth=1 https://github.com/SagerNet/sing-box.git
 
       - name: Install gomobile
         run: |
           echo "$HOME/go/bin" >> $GITHUB_PATH
           export PATH=$PATH:$HOME/go/bin
-
-          go install \
-            github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
-
+          go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
           gomobile init
 
-      - name: Disable Cronet
+      - name: Disable Cronet completely
         run: |
           cd sing-box
 
-          go mod edit \
-            -droprequire github.com/sagernet/cronet-go || true
+          # کامنت کردن import های cronet
+          find . -name "*.go" -exec sed -i 's|^\(.*\)"github.com/sagernet/cronet-go\(.*\)$|// \1"github.com/sagernet/cronet-go\2|' {} \;
 
-          find . \
-            -type f \
-            -name "*.go" \
-            -exec sed -i '/cronet-go/d' {} \;
+          # حذف build tags cronet
+          find . -name "*.go" -exec sed -i 's|//go:build.*with_cronet.*|//go:build ignore|' {} \;
 
-          go clean -cache
-          go clean -modcache
+          # حذف وابستگی
+          go mod edit -droprequire github.com/sagernet/cronet-go || true
           go mod tidy
 
-      - name: Show environment
-        run: |
-          export PATH=$PATH:$HOME/go/bin
+          # پاکسازی کش
+          go clean -cache
+          go clean -modcache
 
-          go version
-          go env
-
-          which gomobile
-          gomobile version || true
+          # بررسی نهایی
+          echo "=== Remaining cronet references ==="
+          grep -r "cronet" --include="*.go" . | grep -v "^//" || echo "✅ Cronet disabled"
 
       - name: Build libbox
         run: |
           export PATH=$PATH:$HOME/go/bin
-
           cd sing-box
-
           go run ./cmd/internal/build_libbox \
             -target android \
             -platform android/arm64

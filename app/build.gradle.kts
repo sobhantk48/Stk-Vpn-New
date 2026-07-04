@@ -40,6 +40,12 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.4"
     }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {
@@ -67,11 +73,8 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.3.0")
     implementation("androidx.camera:camera-view:1.3.0")
 
-    // sing-box core via libbox (جایگزین libv2ray.aar)
-    implementation("io.nekohasekai.sfa:libbox:1.12.0")
-
-    // وابستگی قدیمی libv2ray.aar (دیگه استفاده نمیشه)
-    // implementation(files("libs/libv2ray.aar"))
+    // ✅ استفاده از libbox.aar محلی
+    implementation(files("libs/libbox.aar"))
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

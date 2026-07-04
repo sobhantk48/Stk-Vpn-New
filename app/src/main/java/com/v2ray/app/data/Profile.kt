@@ -8,7 +8,9 @@ data class Profile(
     val server: String = "",
     val port: Int = 443,
     val uuid: String = "",
-    val method: String = "vless"
+    val method: String = "vless",
+    val type: String = "vless", // برای AddConfigDialog
+    val address: String = "" // برای EditProfileDialog
 ) : Serializable {
     fun toV2RayConfig(): String {
         return """{"server":"$server","port":$port,"uuid":"$uuid"}"""

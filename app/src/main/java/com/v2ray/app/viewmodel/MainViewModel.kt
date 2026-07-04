@@ -12,6 +12,14 @@ class MainViewModel(private val repository: ProfileRepository) : ViewModel() {
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState
 
+    init {
+        loadProfiles()
+    }
+
+    private fun loadProfiles() {
+        _uiState.value = _uiState.value.copy(profiles = repository.getProfiles())
+    }
+
     fun updateConnectionState(state: ConnectionState) {
         _uiState.value = _uiState.value.copy(connectionState = state)
     }
@@ -23,8 +31,32 @@ class MainViewModel(private val repository: ProfileRepository) : ViewModel() {
     }
 
     fun connect(profile: Profile) {
-        // منطق اتصال - فعلاً فقط یه پیام لاگ می‌ذاریم
         println("Connecting to ${profile.name}")
+        // منطق اتصال
+    }
+
+    fun disconnect() {
+        println("Disconnecting")
+        // منطق قطع اتصال
+    }
+
+    fun delete(profile: Profile) {
+        val updatedList = _uiState.value.profiles.filter { it.id != profile.id }
+        _uiState.value = _uiState.value.copy(profiles = updatedList)
+        // ذخیره در ریپازیتوری
+    }
+
+    fun update(profile: Profile) {
+        val updatedList = _uiState.value.profiles.map {
+            if (it.id == profile.id) profile else it
+        }
+        _uiState.value = _uiState.value.copy(profiles = updatedList)
+        // ذخیره در ریپازیتوری
+    }
+
+    fun select(profile: Profile) {
+        // انتخاب پروفایل
+        println("Selected ${profile.name}")
     }
 
     data class UiState(

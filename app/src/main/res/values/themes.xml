@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.V2rayApp" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#081020</item>
+        <item name="android:navigationBarColor">#081020</item>
+    </style>
+</resources>

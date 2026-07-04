@@ -34,13 +34,21 @@ jobs:
 
           unzip -q android-ndk-r26d-linux.zip
 
-          echo "ANDROID_NDK_HOME=$GITHUB_WORKSPACE/android-ndk-r26.3.11579264" >> $GITHUB_ENV
+          # ✅ پیدا کردن نام واقعی پوشه استخراج شده
+          NDK_DIR=$(find . -maxdepth 1 -type d -name "android-ndk-r26*" | head -1)
+          echo "NDK directory: $NDK_DIR"
+
+          # ✅ تنظیم ANDROID_NDK_HOME با نام واقعی
+          echo "ANDROID_NDK_HOME=$GITHUB_WORKSPACE/$NDK_DIR" >> $GITHUB_ENV
           echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+
+          # ✅ نمایش محتویات برای تأیید
+          ls -la "$NDK_DIR"
 
       - name: Verify NDK
         run: |
-          echo "$ANDROID_NDK_HOME"
-          ls "$ANDROID_NDK_HOME"
+          echo "NDK Path: $ANDROID_NDK_HOME"
+          ls -la "$ANDROID_NDK_HOME"
           "$ANDROID_NDK_HOME"/toolchains/llvm/prebuilt/linux-x86_64/bin/clang --version
 
       - name: Clone sing-box
@@ -63,20 +71,16 @@ jobs:
         run: |
           cd sing-box
 
-          # حذف وابستگی cronet
           go mod edit \
             -droprequire github.com/sagernet/cronet-go || true
 
-          # حذف import ها
           find . \
             -type f \
             -name "*.go" \
             -exec sed -i '/cronet-go/d' {} \;
 
-          # پاکسازی
           go clean -cache
           go clean -modcache
-
           go mod tidy
 
       - name: Show environment

@@ -1,51 +1,105 @@
-name: Build sing-box libbox
+name: Build libbox (Cronet Disabled)
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
 
 jobs:
-  build-libbox:
+  build:
     runs-on: ubuntu-24.04
 
-    steps:
-      - name: Checkout sing-box source
-        uses: actions/checkout@v4
-        with:
-          repository: SagerNet/sing-box
-          path: sing-box
-          fetch-depth: 1
+    env:
+      GOTOOLCHAIN: local
+      CGO_ENABLED: 1
 
+    steps:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23.0"
+          go-version: "1.24.7"
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y unzip wget build-essential pkg-config
+          sudo apt-get install -y \
+            git wget unzip build-essential pkg-config
 
-      - name: Download Android NDK r27c
+      - name: Download Android NDK r26d
         run: |
-          wget -q https://dl.google.com/android/repository/android-ndk-r27c-linux.zip
-          unzip -q android-ndk-r27c-linux.zip
-          echo "ANDROID_NDK_HOME=$GITHUB_WORKSPACE/android-ndk-r27c" >> $GITHUB_ENV
+          wget -q \
+            https://dl.google.com/android/repository/android-ndk-r26d-linux.zip
+
+          unzip -q android-ndk-r26d-linux.zip
+
+          echo "ANDROID_NDK_HOME=$GITHUB_WORKSPACE/android-ndk-r26.3.11579264" >> $GITHUB_ENV
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+
+      - name: Verify NDK
+        run: |
+          echo "$ANDROID_NDK_HOME"
+          ls "$ANDROID_NDK_HOME"
+          "$ANDROID_NDK_HOME"/toolchains/llvm/prebuilt/linux-x86_64/bin/clang --version
+
+      - name: Clone sing-box
+        run: |
+          git clone \
+            --depth=1 \
+            https://github.com/SagerNet/sing-box.git
 
       - name: Install gomobile
         run: |
-          go install github.com/sagernet/gomobile/cmd/gomobile@latest
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+          export PATH=$PATH:$HOME/go/bin
+
+          go install \
+            github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
+
           gomobile init
 
-      - name: Build libbox for Android ARM64
+      - name: Disable Cronet
         run: |
           cd sing-box
+
+          # حذف وابستگی cronet
+          go mod edit \
+            -droprequire github.com/sagernet/cronet-go || true
+
+          # حذف import ها
+          find . \
+            -type f \
+            -name "*.go" \
+            -exec sed -i '/cronet-go/d' {} \;
+
+          # پاکسازی
+          go clean -cache
+          go clean -modcache
+
+          go mod tidy
+
+      - name: Show environment
+        run: |
+          export PATH=$PATH:$HOME/go/bin
+
+          go version
+          go env
+
+          which gomobile
+          gomobile version || true
+
+      - name: Build libbox
+        run: |
+          export PATH=$PATH:$HOME/go/bin
+
+          cd sing-box
+
           go run ./cmd/internal/build_libbox \
             -target android \
             -platform android/arm64
 
-      - name: Upload libbox.aar
+      - name: Upload libbox
         uses: actions/upload-artifact@v4
         with:
           name: libbox-aar

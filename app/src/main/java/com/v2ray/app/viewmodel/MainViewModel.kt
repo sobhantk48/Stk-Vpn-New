@@ -16,6 +16,17 @@ class MainViewModel(private val repository: ProfileRepository) : ViewModel() {
         _uiState.value = _uiState.value.copy(connectionState = state)
     }
 
+    fun clearError() {
+        _uiState.value = _uiState.value.copy(
+            connectionState = _uiState.value.connectionState.copy(errorMessage = null)
+        )
+    }
+
+    fun connect(profile: Profile) {
+        // منطق اتصال - فعلاً فقط یه پیام لاگ می‌ذاریم
+        println("Connecting to ${profile.name}")
+    }
+
     data class UiState(
         val profiles: List<Profile> = emptyList(),
         val connectionState: ConnectionState = ConnectionState(status = ConnectionStatus.DISCONNECTED)

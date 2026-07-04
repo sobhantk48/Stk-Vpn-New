@@ -67,7 +67,10 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.3.0")
     implementation("androidx.camera:camera-view:1.3.0")
 
-    implementation(files("libs/libv2ray.aar"))
+    // implementation(files("libs/libv2ray.aar"))
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
+
+// اضافه کردن sing-box core از طریق libbox
+implementation("io.nekohasekai.sfa:libbox:1.12.0")

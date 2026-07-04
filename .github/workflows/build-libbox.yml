@@ -1,9 +1,7 @@
-name: Build libbox (Cronet Disabled - Final)
+name: Build libbox (stable v1.11.0)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main, master ]
 
 jobs:
   build:
@@ -24,35 +22,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y git wget unzip build-essential pkg-config
 
-      - name: Install Android SDK
-        run: |
-          mkdir -p "$HOME/android-sdk/cmdline-tools"
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip -O cmdline-tools.zip
-          unzip -q cmdline-tools.zip
-          mv cmdline-tools "$HOME/android-sdk/cmdline-tools/latest"
-          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          yes | "$HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager" --licenses
-          "$HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-
       - name: Download Android NDK r26d
         run: |
           wget -q https://dl.google.com/android/repository/android-ndk-r26d-linux.zip
           unzip -q android-ndk-r26d-linux.zip
-          NDK_PATH=$(find "$GITHUB_WORKSPACE" -maxdepth 1 -type d -name "android-ndk*" | head -n1)
-          echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
+          mkdir -p "$HOME/android-sdk"
+          echo "ANDROID_NDK_HOME=$GITHUB_WORKSPACE/android-ndk-r26d" >> $GITHUB_ENV
           echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
 
-      - name: Verify NDK & SDK
+      - name: Verify NDK
         run: |
-          echo "NDK: $ANDROID_NDK_HOME"
+          echo "$ANDROID_NDK_HOME"
           ls -la "$ANDROID_NDK_HOME"
-          echo "SDK: $ANDROID_HOME"
-          ls -la "$ANDROID_HOME"
 
-      - name: Clone sing-box
+      - name: Clone sing-box (v1.11.0 - without naive/cronet)
         run: |
-          git clone --depth=1 https://github.com/SagerNet/sing-box.git
+          git clone --branch v1.11.0 --depth=1 https://github.com/SagerNet/sing-box.git sing-box
 
       - name: Install gomobile
         run: |
@@ -60,28 +46,6 @@ jobs:
           export PATH=$PATH:$HOME/go/bin
           go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
           gomobile init
-
-      - name: Disable Cronet completely
-        run: |
-          cd sing-box
-
-          # کامنت کردن import های cronet
-          find . -name "*.go" -exec sed -i 's|^\(.*\)"github.com/sagernet/cronet-go\(.*\)$|// \1"github.com/sagernet/cronet-go\2|' {} \;
-
-          # حذف build tags cronet
-          find . -name "*.go" -exec sed -i 's|//go:build.*with_cronet.*|//go:build ignore|' {} \;
-
-          # حذف وابستگی
-          go mod edit -droprequire github.com/sagernet/cronet-go || true
-          go mod tidy
-
-          # پاکسازی کش
-          go clean -cache
-          go clean -modcache
-
-          # بررسی نهایی
-          echo "=== Remaining cronet references ==="
-          grep -r "cronet" --include="*.go" . | grep -v "^//" || echo "✅ Cronet disabled"
 
       - name: Build libbox
         run: |

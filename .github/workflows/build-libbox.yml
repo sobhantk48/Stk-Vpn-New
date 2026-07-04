@@ -1,0 +1,44 @@
+name: Build libbox.aar
+
+on:
+  workflow_dispatch:  # اجرای دستی
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout sing-box
+        uses: actions/checkout@v4
+        with:
+          repository: SagerNet/sing-box
+          path: sing-box
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Set up Android NDK
+        run: |
+          wget https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
+          unzip android-ndk-r25c-linux.zip
+          echo "ANDROID_NDK_HOME=$GITHUB_WORKSPACE/android-ndk-r25c" >> $GITHUB_ENV
+          echo "$GITHUB_WORKSPACE/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
+
+      - name: Install gomobile
+        run: |
+          go install github.com/sagernet/gomobile/cmd/gomobile@latest
+          export PATH=$PATH:~/go/bin
+          gomobile init -android-ndk $ANDROID_NDK_HOME
+
+      - name: Build libbox.aar
+        run: |
+          cd sing-box
+          go run ./cmd/internal/build_libbox -target android -platform android/arm64
+
+      - name: Upload libbox.aar
+        uses: actions/upload-artifact@v4
+        with:
+          name: libbox-aar
+          path: sing-box/libbox.aar

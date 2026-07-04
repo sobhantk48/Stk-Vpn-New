@@ -1,15 +1,16 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 android {
-    namespace = "com.stkvpn.app"
+    namespace = "com.v2ray.app"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.stkvpn.app"
+        applicationId = "com.v2ray.app"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
@@ -35,10 +36,6 @@ android {
 
     buildFeatures {
         compose = true
-    }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.4"
     }
 }
 
@@ -67,7 +64,6 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.3.0")
     implementation("androidx.camera:camera-view:1.3.0")
 
-    // استفاده مستقیم از فایل AAR
     implementation(files("libs/libv2ray.aar"))
 
     debugImplementation("androidx.compose.ui:ui-tooling")

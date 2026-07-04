@@ -30,7 +30,7 @@ jobs:
         run: |
           go install github.com/sagernet/gomobile/cmd/gomobile@latest
           export PATH=$PATH:~/go/bin
-          gomobile init -android-ndk $ANDROID_NDK_HOME
+          gomobile init
 
       - name: Build libbox.aar
         run: |

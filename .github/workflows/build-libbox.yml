@@ -1,44 +1,91 @@
-name: Build libbox.aar
+name: Build sing-box libbox
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main, master ]
+  pull_request:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-libbox:
+    runs-on: ubuntu-24.04
+
+    env:
+      GO111MODULE: "on"
+      CGO_ENABLED: "1"
 
     steps:
-      - name: Checkout sing-box
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Checkout sing-box source
         uses: actions/checkout@v4
         with:
           repository: SagerNet/sing-box
           path: sing-box
+          fetch-depth: 1
 
-      - name: Set up Go
+      - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: "1.23.0"  # نسخه پایدارتر برای گوموبایل
 
-      - name: Set up Android NDK
+      - name: Install build dependencies
         run: |
-          wget https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
-          unzip android-ndk-r25c-linux.zip
-          echo "ANDROID_NDK_HOME=$GITHUB_WORKSPACE/android-ndk-r25c" >> $GITHUB_ENV
-          echo "$GITHUB_WORKSPACE/android-ndk-r25c/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
+          sudo apt-get update
+          sudo apt-get install -y \
+            unzip wget build-essential \
+            pkg-config clang lld
+
+      - name: Download Android NDK r27c
+        run: |
+          wget -q https://dl.google.com/android/repository/android-ndk-r27c-linux.zip
+          unzip -q android-ndk-r27c-linux.zip
+          echo "ANDROID_NDK_HOME=$GITHUB_WORKSPACE/android-ndk-r27c" >> $GITHUB_ENV
+          echo "$GITHUB_WORKSPACE/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
+
+      - name: Show tool versions
+        run: |
+          go version
+          $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android23-clang --version
 
       - name: Install gomobile
         run: |
           go install github.com/sagernet/gomobile/cmd/gomobile@latest
-          export PATH=$PATH:~/go/bin
+          go install github.com/sagernet/gomobile/cmd/gobind@latest
           gomobile init
 
-      - name: Build libbox.aar
+      - name: Download dependencies
         run: |
           cd sing-box
-          go run ./cmd/internal/build_libbox -target android -platform android/arm64
+          go mod download
 
-      - name: Upload libbox.aar
+      - name: Build libbox for Android ARM64
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+        run: |
+          cd sing-box
+          export CC=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android23-clang
+          export CXX=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android23-clang++
+          go run ./cmd/internal/build_libbox \
+            -target android \
+            -platform android/arm64 \
+            -tags with_gvisor,with_quic,with_wireguard,with_utls,with_clash_api
+
+      - name: Verify output
+        run: |
+          find sing-box -name "*.aar" -o -name "*.so" | head -10
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: libbox-aar
-          path: sing-box/libbox.aar
+          path: |
+            sing-box/*.aar
+            sing-box/build/**/*.aar
+            sing-box/build/**/*.so
+          if-no-files-found: warn
+          retention-days: 30

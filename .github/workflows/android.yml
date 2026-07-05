@@ -1,4 +1,4 @@
-name: Android CI Ultra-Pro-Max
+name: Android CI Ultra-Final
 
 on:
   push:
@@ -30,12 +30,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Build Release (Ultra-Pro-Max filtered output)
+      - name: Build Release (Ultra-Final filtered output)
         run: |
           echo "🚀 Running Gradle build..."
           ./gradlew assembleRelease --stacktrace --warning-mode=none > full_log.txt 2>&1
 
-          echo "❌ Showing only filtered errors:"
+          echo "❌ Showing filtered errors:"
           echo "----------------------------------------"
 
           # Kotlin errors
@@ -90,6 +90,10 @@ jobs:
 
           echo "----------------------------------------"
           echo "📄 Full log saved as full_log.txt"
+
+          echo "🔍 Showing last 200 lines (real error):"
+          echo "----------------------------------------"
+          tail -n 200 full_log.txt
 
       - name: Upload full log artifact
         uses: actions/upload-artifact@v4

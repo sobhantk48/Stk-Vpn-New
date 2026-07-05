@@ -1,24 +1,32 @@
 package com.v2ray.app.security
 
+import com.v2ray.app.utils.Logger
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+
 object AdminSession {
-    private const val PASSWORD_HASH = "9f86d081884c7d659a9fe9650f6fd63f"
-    private var isLoggedIn = false
+    private const val DEFAULT_PASSWORD = "1311"
+    private var currentPassword = DEFAULT_PASSWORD
+    private val _loggedIn = MutableStateFlow(false)
+    val loggedIn: StateFlow<Boolean> = _loggedIn
 
-    fun login(password: String): Boolean {
-        if (verifyPassword(password)) {
-            isLoggedIn = true
-            return true
+    fun validatePassword(input: String): Boolean {
+        val result = input == currentPassword
+        Logger.writeLog("Admin login: ${if (result) "success" else "failed"}")
+        return result
+    }
+
+    fun login() { _loggedIn.value = true; Logger.writeLog("Admin logged in") }
+    fun logout() { _loggedIn.value = false; Logger.writeLog("Admin logged out") }
+
+    fun changePassword(old: String, new: String): Boolean {
+        return if (old == currentPassword && new.length >= 4) {
+            currentPassword = new
+            Logger.writeLog("Password changed")
+            true
+        } else {
+            Logger.writeLog("Password change failed")
+            false
         }
-        return false
-    }
-
-    fun logout() {
-        isLoggedIn = false
-    }
-
-    fun isLoggedIn(): Boolean = isLoggedIn
-
-    fun verifyPassword(password: String): Boolean {
-        return password == "test"
     }
 }

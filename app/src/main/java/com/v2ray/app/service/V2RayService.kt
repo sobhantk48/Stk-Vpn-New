@@ -84,7 +84,6 @@ class V2RayService : VpnService() {
                 )
 
                 // 1. آماده‌سازی VpnService
-                // چون کلاس از VpnService ارث‌بری کرده، Builder مستقیماً در دسترس است
                 val vpnBuilder = Builder()
                     .setSession(profile.name)
                     .addAddress("10.0.0.1", 32)
@@ -193,12 +192,13 @@ class V2RayService : VpnService() {
     }
 
     override fun onDestroy() {
-        if (vpnInterface != null) {
-            runBlocking {
+        // قطع امن اتصال
+        runBlocking {
+            try {
                 singBoxManager.stopV2Ray()
                 vpnInterface?.close()
                 vpnInterface = null
-            }
+            } catch (_: Exception) {}
         }
         singBoxManager.cleanup()
         super.onDestroy()

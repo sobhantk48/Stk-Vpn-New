@@ -39,7 +39,7 @@ android {
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion '1.5.4'
+        kotlinCompilerExtensionVersion '1.5.14'   // ← تغییر به 1.5.14 برای Kotlin 1.9.24
     }
 }
 

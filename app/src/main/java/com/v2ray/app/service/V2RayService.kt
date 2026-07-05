@@ -82,7 +82,7 @@ class V2RayService : VpnService() {
                     currentProfile = profile
                 )
 
-                // 1. آماده‌سازی VpnService
+                // 1. ایجاد VPN interface
                 val vpnBuilder = Builder()
                     .setSession(profile.name)
                     .addAddress("10.0.0.1", 32)
@@ -92,11 +92,11 @@ class V2RayService : VpnService() {
                     .setMtu(1500)
                     .setBlocking(true)
 
-                val vpnInterface = vpnBuilder.establish()
-                this@V2RayService.vpnInterface = vpnInterface
+                val pfd = vpnBuilder.establish()
+                this@V2RayService.vpnInterface = pfd
 
-                // استفاده از safe call برای جلوگیری از خطای کامپایلر
-                val fd = vpnInterface?.fd
+                // ✅ استفاده از safe call و سپس بررسی null
+                val fd = pfd?.fd
                 if (fd == null || fd <= 0) {
                     throw Exception("VPN interface is null or invalid")
                 }
@@ -109,7 +109,7 @@ class V2RayService : VpnService() {
                     return@launch
                 }
 
-                // 3. راه‌اندازی VPN
+                // 3. راه‌اندازی VPN با کانفیگ
                 val configJson = profile.toV2RayConfig()
                 val result = singBoxManager.startV2Ray(configJson, fd)
 

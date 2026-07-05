@@ -1,4 +1,4 @@
-name: Android CI Ultra-Final
+name: Android CI Ultra-Final-Debug
 
 on:
   push:
@@ -30,69 +30,25 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Build Release (Ultra-Final filtered output)
+      - name: Build Release (Direct output + filtered + tail)
         run: |
-          echo "🚀 Running Gradle build..."
-          ./gradlew assembleRelease --stacktrace --warning-mode=none > full_log.txt 2>&1
+          echo "🚀 Running Gradle build (direct output)..."
+          ./gradlew assembleRelease --stacktrace --warning-mode=none | tee full_log.txt
 
-          echo "❌ Showing filtered errors:"
+          echo "❌ Filtered errors:"
           echo "----------------------------------------"
 
-          # Kotlin errors
-          grep -i "e: " full_log.txt || true
-          grep -i "Unresolved reference" full_log.txt || true
-
-          # Java errors
-          grep -i "cannot find symbol" full_log.txt || true
-          grep -i "class not found" full_log.txt || true
-
-          # Gradle errors
           grep -i "error" full_log.txt || true
-          grep -i "Execution failed" full_log.txt || true
-          grep -i "Build failed" full_log.txt || true
+          grep -i "FAILED" full_log.txt || true
+          grep -i "Exception" full_log.txt || true
+          grep -i "Unresolved reference" full_log.txt || true
+          grep -i "cannot find symbol" full_log.txt || true
+          grep -i "not found" full_log.txt || true
+          grep -i "could not resolve" full_log.txt || true
           grep -i "> A failure occurred" full_log.txt || true
 
-          # Missing / Not found
-          grep -i "not found" full_log.txt || true
-          grep -i "file not found" full_log.txt || true
-          grep -i "could not resolve" full_log.txt || true
-
-          # Duplicate class
-          grep -i "Duplicate class" full_log.txt || true
-
-          # Exceptions
-          grep -i "Exception" full_log.txt || true
-          grep -i "Caused by" full_log.txt || true
-
-          # Native / AAR / Transform errors
-          grep -i "Transform" full_log.txt || true
-          grep -i ".aar" full_log.txt || true
-          grep -i ".so" full_log.txt || true
-
-          # Manifest / Resource errors
-          grep -i "manifest" full_log.txt || true
-          grep -i "resource" full_log.txt || true
-          grep -i "xml" full_log.txt || true
-
-          # Compose compiler errors
-          grep -i "compose" full_log.txt || true
-          grep -i "Composable" full_log.txt || true
-
-          # Hilt errors
-          grep -i "hilt" full_log.txt || true
-
-          # Serialization errors
-          grep -i "serialization" full_log.txt || true
-
-          # CameraX / MLKit errors
-          grep -i "camera" full_log.txt || true
-          grep -i "mlkit" full_log.txt || true
-
           echo "----------------------------------------"
-          echo "📄 Full log saved as full_log.txt"
-
-          echo "🔍 Showing last 200 lines (real error):"
-          echo "----------------------------------------"
+          echo "🔍 Last 200 lines:"
           tail -n 200 full_log.txt
 
       - name: Upload full log artifact

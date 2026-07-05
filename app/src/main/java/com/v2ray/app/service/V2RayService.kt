@@ -6,8 +6,10 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.net.VpnService
 import android.os.Build
 import android.os.IBinder
+import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
 import com.v2ray.app.MainActivity
 import com.v2ray.app.R
@@ -22,8 +24,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class V2RayService : Service() {
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private lateinit var manager: SingBoxManager
+    private lateinit var singBoxManager: SingBoxManager
+    private var vpnInterface: ParcelFileDescriptor? = null
+    private var currentProfile: Profile? = null
 
     companion object {
         private const val NOTIF_ID = 1001
@@ -34,7 +39,10 @@ class V2RayService : Service() {
 
         fun start(ctx: Context, profile: Profile) {
             Logger.writeLog("V2RayService start: ${profile.name}")
-            _state.value = ConnectionState(status = ConnectionStatus.CONNECTING)
+            _state.value = ConnectionState(
+                status = ConnectionStatus.CONNECTING,
+                currentProfile = profile
+            )
             val intent = Intent(ctx, V2RayService::class.java)
             intent.putExtra("profile", profile as java.io.Serializable)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -45,7 +53,7 @@ class V2RayService : Service() {
         }
 
         fun stop(ctx: Context) {
-            _state.value = ConnectionState(status = ConnectionStatus.DISCONNECTED)
+            Logger.writeLog("V2RayService stop requested")
             ctx.stopService(Intent(ctx, V2RayService::class.java))
         }
 
@@ -56,14 +64,35 @@ class V2RayService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        manager = SingBoxManager(this)
+        singBoxManager = SingBoxManager(this)
         createChannel()
         startForeground(NOTIF_ID, buildNotification("Initializing..."))
         Logger.writeLog("V2RayService created")
+
+        // گوش دادن به تغییرات وضعیت از SingBoxManager
+        scope.launch {
+            singBoxManager.coreState.collect { coreState ->
+                val currentStatus = when (coreState) {
+                    com.v2ray.app.v2ray.CoreState.IDLE -> ConnectionStatus.IDLE
+                    com.v2ray.app.v2ray.CoreState.CONNECTING -> ConnectionStatus.CONNECTING
+                    com.v2ray.app.v2ray.CoreState.CONNECTED -> ConnectionStatus.CONNECTED
+                    com.v2ray.app.v2ray.CoreState.DISCONNECTED -> ConnectionStatus.DISCONNECTED
+                    com.v2ray.app.v2ray.CoreState.ERROR -> ConnectionStatus.ERROR
+                }
+                _state.value = _state.value.copy(
+                    status = currentStatus,
+                    currentProfile = currentProfile
+                )
+                Logger.writeLog("State updated from core: $currentStatus")
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        (intent?.getSerializableExtra("profile") as? Profile)?.let { connect(it) }
+        (intent?.getSerializableExtra("profile") as? Profile)?.let { profile ->
+            currentProfile = profile
+            connect(profile)
+        }
         return START_STICKY
     }
 
@@ -71,58 +100,89 @@ class V2RayService : Service() {
         scope.launch {
             try {
                 updateNotification("Connecting to ${profile.name}...")
-                Companion.updateState(
-                    ConnectionState(
-                        status = ConnectionStatus.CONNECTING,
-                        currentProfile = profile
-                    )
+                _state.value = _state.value.copy(
+                    status = ConnectionStatus.CONNECTING,
+                    currentProfile = profile
                 )
 
-                val result = manager.startV2Ray(profile.toV2RayConfig())
+                // 1. آماده‌سازی VpnService
+                val vpnBuilder = VpnService.Builder()
+                    .setSession(profile.name)
+                    .addAddress("10.0.0.1", 32)
+                    .addRoute("0.0.0.0", 0)
+                    .addDnsServer("8.8.8.8")
+                    .addDnsServer("1.1.1.1")
+                    .setMtu(1500)
+                    .setBlocking(true)
+
+                // اینجا باید packageName رو هم اضافه کنی تا VPN فقط برای این اپ فعال بشه
+                // vpnBuilder.addDisallowedApplication(packageName)
+
+                val vpnInterface = vpnBuilder.establish()
+                this@V2RayService.vpnInterface = vpnInterface
+                val fd = vpnInterface.fd
+
+                // 2. مقداردهی اولیه و راه‌اندازی هسته
+                val initResult = singBoxManager.initialize()
+                if (initResult.isFailure) {
+                    val err = initResult.exceptionOrNull()
+                    handleError(err?.message ?: "Initialization failed")
+                    return@launch
+                }
+
+                // 3. راه‌اندازی VPN با کانفیگ
+                val configJson = profile.toV2RayConfig()
+                val result = singBoxManager.startV2Ray(configJson, fd)
+
                 if (result.isSuccess) {
                     updateNotification("Connected to ${profile.name}")
-                    Companion.updateState(
-                        ConnectionState(
-                            status = ConnectionStatus.CONNECTED,
-                            currentProfile = profile
-                        )
+                    _state.value = _state.value.copy(
+                        status = ConnectionStatus.CONNECTED,
+                        currentProfile = profile
                     )
+                    Logger.writeLog("V2Ray connected successfully")
                 } else {
                     val err = result.exceptionOrNull()
-                    updateNotification("Connection failed: ${err?.message}")
-                    Companion.updateState(
-                        ConnectionState(
-                            status = ConnectionStatus.ERROR,
-                            currentProfile = profile,
-                            errorMessage = err?.message ?: "Unknown error"
-                        )
-                    )
+                    handleError(err?.message ?: "Connection failed")
                 }
             } catch (e: Exception) {
                 Logger.writeError("Connect error", e)
-                updateNotification("Error: ${e.message}")
-                Companion.updateState(
-                    ConnectionState(
-                        status = ConnectionStatus.ERROR,
-                        currentProfile = profile,
-                        errorMessage = e.message ?: "Unknown error"
-                    )
-                )
+                handleError(e.message ?: "Unknown error")
             }
         }
     }
 
+    private suspend fun handleError(message: String) {
+        Logger.writeError("Connection error: $message")
+        updateNotification("Error: $message")
+        _state.value = _state.value.copy(
+            status = ConnectionStatus.ERROR,
+            errorMessage = message
+        )
+        // بستن VpnInterface در صورت وجود
+        vpnInterface?.close()
+        vpnInterface = null
+        // توقف سرویس
+        stopSelf()
+    }
+
     fun disconnect() {
         scope.launch {
-            manager.stopV2Ray()
-            updateNotification("Disconnected")
-            Companion.updateState(
-                ConnectionState(
-                    status = ConnectionStatus.DISCONNECTED
+            try {
+                singBoxManager.stopV2Ray()
+                vpnInterface?.close()
+                vpnInterface = null
+                updateNotification("Disconnected")
+                _state.value = _state.value.copy(
+                    status = ConnectionStatus.DISCONNECTED,
+                    errorMessage = null
                 )
-            )
-            stopSelf()
-            Logger.writeLog("V2RayService disconnected")
+                Logger.writeLog("V2RayService disconnected")
+            } catch (e: Exception) {
+                Logger.writeError("Disconnect error", e)
+            } finally {
+                stopSelf()
+            }
         }
     }
 
@@ -159,8 +219,13 @@ class V2RayService : Service() {
     }
 
     override fun onDestroy() {
-        disconnect()
+        // جلوگیری از دوبار اجرا شدن disconnect
+        if (vpnInterface != null) {
+            disconnect()
+        }
+        singBoxManager.cleanup()
         super.onDestroy()
+        Logger.writeLog("V2RayService destroyed")
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

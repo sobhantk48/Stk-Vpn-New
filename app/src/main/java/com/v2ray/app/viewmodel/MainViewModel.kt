@@ -7,6 +7,7 @@ import com.v2ray.app.data.Profile
 import com.v2ray.app.repository.ProfileRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 
 class MainViewModel(private val repository: ProfileRepository) : ViewModel() {
     private val _uiState = MutableStateFlow(UiState())
@@ -17,42 +18,36 @@ class MainViewModel(private val repository: ProfileRepository) : ViewModel() {
     }
 
     private fun loadProfiles() {
-        _uiState.value = _uiState.value.copy(profiles = repository.getProfiles())
+        _uiState.update { it.copy(profiles = repository.getProfiles()) }
     }
 
-    fun updateConnectionState(state: ConnectionState) {
-        _uiState.value = _uiState.value.copy(connectionState = state)
-    }
-
-    fun clearError() {
-        _uiState.value = _uiState.value.copy(
-            connectionState = _uiState.value.connectionState.copy(errorMessage = null)
-        )
-    }
-
-    fun connect(profile: Profile) {
-        _uiState.value = _uiState.value.copy(
-            connectionState = ConnectionState(status = ConnectionStatus.CONNECTING)
-        )
-        // TODO: پیاده‌سازی اتصال به V2Ray
+    fun connect() {
+        _uiState.update {
+            it.copy(
+                connectionState = ConnectionState(
+                    status = ConnectionStatus.CONNECTING,
+                    ping = 0,
+                    downloadSpeed = 0.0,
+                    uploadSpeed = 0.0
+                )
+            )
+        }
     }
 
     fun disconnect() {
-        _uiState.value = _uiState.value.copy(
-            connectionState = ConnectionState(status = ConnectionStatus.DISCONNECTED)
-        )
-    }
-
-    fun delete(profile: Profile) {
-        val updatedList = _uiState.value.profiles.filter { it.id != profile.id }
-        _uiState.value = _uiState.value.copy(profiles = updatedList)
-    }
-
-    fun update(profile: Profile) {
-        val updatedList = _uiState.value.profiles.map {
-            if (it.id == profile.id) profile else it
+        _uiState.update {
+            it.copy(
+                connectionState = ConnectionState(status = ConnectionStatus.DISCONNECTED)
+            )
         }
-        _uiState.value = _uiState.value.copy(profiles = updatedList)
+    }
+
+    fun clearError() {
+        _uiState.update {
+            it.copy(
+                connectionState = it.connectionState.copy(errorMessage = null)
+            )
+        }
     }
 
     data class UiState(

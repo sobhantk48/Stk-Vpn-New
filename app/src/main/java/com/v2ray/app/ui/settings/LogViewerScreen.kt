@@ -30,7 +30,7 @@ fun LogViewerScreen(viewModel: MainViewModel) {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text(text = "Log Viewer")
+        Text(text = "Logs")
         LazyColumn {
             items(logs) { log ->
                 Text(text = log, modifier = Modifier.padding(vertical = 2.dp))

@@ -7,20 +7,19 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.v2ray.app.data.Profile
 import com.v2ray.app.viewmodel.MainViewModel
 
 @Composable
-fun LocationListScreen(
-    viewModel: MainViewModel,
-    onProfileSelected: (Profile) -> Unit
-) {
-    val profiles = viewModel.uiState.value.profiles
+fun LocationListScreen(viewModel: MainViewModel) {
+    val uiState by viewModel.uiState.collectAsState()
+    val profiles = uiState.profiles
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text(text = "Locations")
+        Text(text = "Location List")
         LazyColumn {
             items(profiles) { profile ->
                 Text(

@@ -11,6 +11,7 @@ data class ConnectionState(
     val status: ConnectionStatus = ConnectionStatus.DISCONNECTED,
     val currentProfile: Profile? = null,
     val connectedTime: String = "00:00:00",
+    val ping: Long = 0,
     val downloadSpeed: Double = 0.0,
     val uploadSpeed: Double = 0.0,
     val errorMessage: String? = null

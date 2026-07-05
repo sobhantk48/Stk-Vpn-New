@@ -8,7 +8,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.navigation.compose.rememberNavController
 import com.v2ray.app.navigation.AppNavigation
 import com.v2ray.app.repository.ProfileRepository
 import com.v2ray.app.ui.theme.V2rayAppTheme
@@ -32,9 +31,5 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun AppContent(viewModel: MainViewModel) {
-    val navController = rememberNavController()
-    AppNavigation(
-        navController = navController,
-        viewModel = viewModel
-    )
+    AppNavigation(viewModel = viewModel)
 }

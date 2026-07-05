@@ -1,4 +1,4 @@
-name: Android CI
+name: Android CI Ultra-Pro
 
 on:
   push:
@@ -30,7 +30,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Build Release (Professional filtered output)
+      - name: Build Release (Ultra-Pro filtered output)
         run: |
           echo "🚀 Running Gradle build..."
           ./gradlew assembleRelease --stacktrace --warning-mode=none > full_log.txt 2>&1
@@ -44,10 +44,27 @@ jobs:
           # General Gradle errors
           grep -i "error" full_log.txt || true
 
+          # Task failures
+          grep -i "FAILED" full_log.txt || true
+          grep -i "Execution failed" full_log.txt || true
+          grep -i "Build failed" full_log.txt || true
+
+          # Exceptions
+          grep -i "Exception" full_log.txt || true
+          grep -i "Caused by" full_log.txt || true
+
           # Native / AAR / Transform errors
           grep -i "Transform" full_log.txt || true
           grep -i ".aar" full_log.txt || true
-          grep -i "so" full_log.txt || true
+          grep -i ".so" full_log.txt || true
+
+          # Manifest / Resource errors
+          grep -i "manifest" full_log.txt || true
+          grep -i "resource" full_log.txt || true
+          grep -i "xml" full_log.txt || true
+
+          # Compose compiler errors
+          grep -i "compose" full_log.txt || true
 
           # Hilt errors
           grep -i "hilt" full_log.txt || true

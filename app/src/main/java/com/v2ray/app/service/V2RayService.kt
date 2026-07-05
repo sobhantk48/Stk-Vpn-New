@@ -3,7 +3,6 @@ package com.v2ray.app.service
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.net.VpnService
@@ -95,7 +94,8 @@ class V2RayService : VpnService() {
 
                 val vpnInterface = vpnBuilder.establish()
                 this@V2RayService.vpnInterface = vpnInterface
-                val fd = vpnInterface.fd
+                // استفاده از safe call برای جلوگیری از خطای کامپایلر
+                val fd = vpnInterface?.fd ?: throw Exception("VPN interface is null")
 
                 // 2. مقداردهی اولیه هسته
                 val initResult = singBoxManager.initialize()
@@ -192,7 +192,6 @@ class V2RayService : VpnService() {
     }
 
     override fun onDestroy() {
-        // قطع امن اتصال
         runBlocking {
             try {
                 singBoxManager.stopV2Ray()

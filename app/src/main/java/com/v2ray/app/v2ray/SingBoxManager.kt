@@ -6,10 +6,15 @@ import go.Seq
 import libv2ray.CoreCallbackHandler
 import libv2ray.CoreController
 import libv2ray.Libv2ray
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 class SingBoxManager(private val context: Context) {
 
@@ -32,26 +37,28 @@ class SingBoxManager(private val context: Context) {
     private inner class CoreCallback : CoreCallbackHandler {
         override fun onEmitStatus(status: Long, message: String): Long {
             Log.d(TAG, "onEmitStatus: $status - $message")
-            when (status) {
-                0L -> _coreState.value = CoreState.IDLE
-                1L -> _coreState.value = CoreState.CONNECTING
-                2L -> _coreState.value = CoreState.CONNECTED
-                3L -> _coreState.value = CoreState.DISCONNECTED
-                4L -> _coreState.value = CoreState.ERROR
-                else -> _coreState.value = CoreState.IDLE
+            _coreState.update {
+                when (status) {
+                    0L -> CoreState.IDLE
+                    1L -> CoreState.CONNECTING
+                    2L -> CoreState.CONNECTED
+                    3L -> CoreState.DISCONNECTED
+                    4L -> CoreState.ERROR
+                    else -> CoreState.IDLE
+                }
             }
             return 0
         }
 
         override fun startup(): Long {
             Log.d(TAG, "startup: Core is starting up")
-            _coreState.value = CoreState.CONNECTING
+            _coreState.update { CoreState.CONNECTING }
             return 0
         }
 
         override fun shutdown(): Long {
             Log.d(TAG, "shutdown: Core is shutting down")
-            _coreState.value = CoreState.DISCONNECTED
+            _coreState.update { CoreState.DISCONNECTED }
             return 0
         }
     }
@@ -69,9 +76,7 @@ class SingBoxManager(private val context: Context) {
 
                 val callback = CoreCallback()
                 controller = Libv2ray.newCoreController(callback)
-                if (controller == null) {
-                    throw Exception("Failed to create CoreController")
-                }
+                    ?: throw Exception("Failed to create CoreController")
 
                 isInitialized = true
                 Result.success(Unit)
@@ -90,42 +95,42 @@ class SingBoxManager(private val context: Context) {
 
                 val ctrl = controller ?: throw Exception("CoreController is null")
 
-                // اگر VPN در حال اجراست، اول متوقفش کن
                 if (isRunning) {
                     stopV2Ray().getOrThrow()
                 }
 
-                // اطمینان از اینکه فایل دیسکریپتور معتبر است
                 if (vpnFd <= 0) {
                     throw Exception("Invalid VPN file descriptor: $vpnFd")
                 }
 
                 Log.d(TAG, "Starting V2Ray with fd: $vpnFd")
                 ctrl.startLoop(configJson, vpnFd)
+
                 isRunning = true
-                _coreState.value = CoreState.CONNECTED
+                _coreState.update { CoreState.CONNECTED }
 
                 Log.d(TAG, "V2Ray started successfully")
                 Result.success(Unit)
             } catch (e: Exception) {
                 Log.e(TAG, "startV2Ray failed", e)
-                _coreState.value = CoreState.ERROR
+                _coreState.update { CoreState.ERROR }
                 Result.failure(e)
             }
         }
 
-    suspend fun stopV2Ray(): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            controller?.stopLoop()
-            isRunning = false
-            _coreState.value = CoreState.DISCONNECTED
-            Log.d(TAG, "V2Ray stopped")
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Log.e(TAG, "stopV2Ray failed", e)
-            Result.failure(e)
+    suspend fun stopV2Ray(): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                controller?.stopLoop()
+                isRunning = false
+                _coreState.update { CoreState.DISCONNECTED }
+                Log.d(TAG, "V2Ray stopped")
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Log.e(TAG, "stopV2Ray failed", e)
+                Result.failure(e)
+            }
         }
-    }
 
     fun isRunning(): Boolean = isRunning && (controller?.isRunning ?: false)
 
@@ -138,7 +143,7 @@ class SingBoxManager(private val context: Context) {
         controller = null
         isRunning = false
         isInitialized = false
-        _coreState.value = CoreState.IDLE
+        _coreState.update { CoreState.IDLE }
         Log.d(TAG, "Cleanup done")
     }
 }

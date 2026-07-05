@@ -7,9 +7,10 @@ import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.v2ray.app.data.ConnectionState
-import com.v2ray.app.data.ConnectionStatus
 import com.v2ray.app.data.Profile
 import com.v2ray.app.repository.ProfileRepository
+import com.v2ray.app.repository.SettingsRepository
+import com.v2ray.app.repository.AdminRepository
 import com.v2ray.app.service.V2RayService
 import com.v2ray.app.utils.Logger
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +33,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         Logger.writeLog("MainViewModel init")
+
+        // 🔥 فعال‌سازی ذخیره‌سازی تنظیمات
+        SettingsRepository.initialize(application)
+
+        // 🔥 فعال‌سازی رمز ادمین
+        AdminRepository.initialize(application)
+
+        // فعال‌سازی پروفایل‌ها
         ProfileRepository.initialize(application)
 
         viewModelScope.launch {
@@ -70,12 +79,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val intent = VpnService.prepare(context)
 
         if (intent == null) {
-            // مجوز قبلاً داده شده، مستقیماً سرویس را شروع کن
             V2RayService.start(context, profile)
         } else {
-            // نیاز به مجوز داریم
             vpnPermissionLauncher?.invoke(intent) ?: run {
-                // اگر launcher وجود نداشت (نباید رخ بدهد)
                 Toast.makeText(context, "خطا در دریافت مجوز VPN", Toast.LENGTH_SHORT).show()
             }
         }

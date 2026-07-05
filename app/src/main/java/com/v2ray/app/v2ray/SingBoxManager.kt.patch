@@ -1,0 +1,9 @@
+تغییر بده:
+
+fun isRunning(): Boolean =
+    isRunning && (controller?.getIsRunning() ?: false)
+
+به جای:
+
+fun isRunning(): Boolean =
+    isRunning && (controller?.isRunning ?: false)

@@ -15,14 +15,16 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 
 object ProfileRepository {
+
     private lateinit var prefs: SharedPreferences
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
+
     private val _profiles = MutableStateFlow<List<Profile>>(emptyList())
     val profiles: StateFlow<List<Profile>> = _profiles
 
     fun initialize(ctx: Context) {
         prefs = ctx.getSharedPreferences("v2ray_profiles", Context.MODE_PRIVATE)
-        Logger.writeLog("ProfileRepository initialized with SharedPreferences")
+        Logger.writeLog("ProfileRepository initialized")
         loadFromStorage()
     }
 
@@ -32,18 +34,17 @@ object ProfileRepository {
             if (!raw.isNullOrBlank()) {
                 val list = json.decodeFromString<List<Profile>>(raw)
                 _profiles.value = list
-                Logger.writeLog("Loaded ${list.size} profiles from SharedPreferences")
-                // اگر هیچ پروفایلی selected نیست و لیست خالی نیست، اولین را انتخاب کن
+
+                Logger.writeLog("Loaded ${list.size} profiles")
+
                 if (list.isNotEmpty() && list.none { it.selected }) {
-                    val first = list.first()
-                    select(first.id)
+                    select(list.first().id)
                 }
             } else {
-                Logger.writeLog("No profiles found in SharedPreferences")
+                Logger.writeLog("No profiles found")
             }
         } catch (e: Exception) {
             Logger.writeError("Load profiles failed", e)
-            // در صورت خطا، لیست را خالی کن
             _profiles.value = emptyList()
         }
     }
@@ -52,7 +53,7 @@ object ProfileRepository {
         try {
             val raw = json.encodeToString(_profiles.value)
             prefs.edit().putString("profiles", raw).apply()
-            Logger.writeLog("Saved ${_profiles.value.size} profiles to SharedPreferences")
+            Logger.writeLog("Saved ${_profiles.value.size} profiles")
         } catch (e: Exception) {
             Logger.writeError("Save profiles failed", e)
         }
@@ -63,11 +64,12 @@ object ProfileRepository {
     fun add(profile: Profile) {
         _profiles.update { it + profile }
         save()
-        // اگر اولین پروفایل است، آن را انتخاب کن
+
         if (_profiles.value.size == 1) {
             select(profile.id)
         }
-        Logger.writeLog("Added: ${profile.name}")
+
+        Logger.writeLog("Added profile: ${profile.name}")
     }
 
     fun update(profile: Profile) {
@@ -75,17 +77,23 @@ object ProfileRepository {
             list.map { if (it.id == profile.id) profile else it }
         }
         save()
+        Logger.writeLog("Updated profile: ${profile.name}")
     }
 
     fun delete(id: String) {
+        val wasSelected = _profiles.value.firstOrNull { it.id == id }?.selected == true
+
         _profiles.update { it.filterNot { it.id == id } }
         save()
-        // اگر پروفایل حذف شده selected بود، اولین پروفایل را انتخاب کن
-        val currentList = _profiles.value
-        if (currentList.isNotEmpty() && currentList.none { it.selected }) {
-            select(currentList.first().id)
+
+        if (wasSelected) {
+            val list = _profiles.value
+            if (list.isNotEmpty()) {
+                select(list.first().id)
+            }
         }
-        Logger.writeLog("Deleted: $id")
+
+        Logger.writeLog("Deleted profile: $id")
     }
 
     fun select(id: String) {
@@ -101,5 +109,6 @@ object ProfileRepository {
     fun clear() {
         _profiles.value = emptyList()
         save()
+        Logger.writeLog("Cleared all profiles")
     }
 }

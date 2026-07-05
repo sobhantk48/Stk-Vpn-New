@@ -3,13 +3,7 @@ package com.v2ray.app.data
 import android.util.Base64
 import java.io.Serializable
 import kotlinx.serialization.Serializable as KSerializable
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.*
 
 @KSerializable
 data class Profile(
@@ -48,34 +42,37 @@ data class Profile(
         put("settings", buildJsonObject {
             put("vnext", JsonArray(listOf(
                 buildJsonObject {
-                    put("address", JsonPrimitive(address))
-                    put("port", JsonPrimitive(port))
+                    put("address", address)
+                    put("port", port)
                     put("users", JsonArray(listOf(
                         buildJsonObject {
-                            put("id", JsonPrimitive(uuid.ifEmpty { "00000000-0000-0000-0000-000000000000" }))
-                            put("flow", JsonPrimitive(flow.ifEmpty { "none" }))
-                            put("encryption", JsonPrimitive("none"))
+                            put("id", uuid.ifEmpty { "00000000-0000-0000-0000-000000000000" })
+                            put("flow", flow.ifEmpty { "none" })
+                            put("encryption", "none")
                         }
                     )))
                 }
             )))
         })
-        if (sni.isNotBlank() || realityPublicKey.isNotBlank()) {
-            put("streamSettings", buildJsonObject {
-                put("network", JsonPrimitive("tcp"))
-                put("security", JsonPrimitive(if (realityPublicKey.isNotBlank()) "reality" else "tls"))
+
+        put("streamSettings", buildJsonObject {
+            put("network", "tcp")
+
+            if (realityPublicKey.isNotBlank()) {
+                put("security", "reality")
                 put("realitySettings", buildJsonObject {
                     put("serverNames", JsonArray(listOf(JsonPrimitive(sni.ifEmpty { address }))))
-                    put("privateKey", JsonPrimitive(""))
+                    put("publicKey", realityPublicKey)
                     put("shortIds", JsonArray(listOf(JsonPrimitive(realityShortId.ifEmpty { "0000000000000000" }))))
-                    put("publicKey", JsonPrimitive(realityPublicKey))
                 })
+            } else {
+                put("security", "tls")
                 put("tlsSettings", buildJsonObject {
-                    put("serverName", JsonPrimitive(sni.ifEmpty { address }))
-                    put("fingerprint", JsonPrimitive(fingerprint))
+                    put("serverName", sni.ifEmpty { address })
+                    put("fingerprint", fingerprint)
                 })
-            })
-        }
+            }
+        })
     }
 
     private fun buildVmessJson() = buildJsonObject {
@@ -83,12 +80,12 @@ data class Profile(
         put("settings", buildJsonObject {
             put("vnext", JsonArray(listOf(
                 buildJsonObject {
-                    put("address", JsonPrimitive(address))
-                    put("port", JsonPrimitive(port))
+                    put("address", address)
+                    put("port", port)
                     put("users", JsonArray(listOf(
                         buildJsonObject {
-                            put("id", JsonPrimitive(uuid.ifEmpty { "00000000-0000-0000-0000-000000000000" }))
-                            put("security", JsonPrimitive("auto"))
+                            put("id", uuid.ifEmpty { "00000000-0000-0000-0000-000000000000" })
+                            put("security", "auto")
                         }
                     )))
                 }
@@ -101,10 +98,10 @@ data class Profile(
         put("settings", buildJsonObject {
             put("servers", JsonArray(listOf(
                 buildJsonObject {
-                    put("address", JsonPrimitive(address))
-                    put("port", JsonPrimitive(port))
-                    put("password", JsonPrimitive(uuid.ifEmpty { "password" }))
-                    put("flow", JsonPrimitive(flow))
+                    put("address", address)
+                    put("port", port)
+                    put("password", uuid.ifEmpty { "password" })
+                    put("flow", flow)
                 }
             )))
         })
@@ -115,16 +112,17 @@ data class Profile(
         put("settings", buildJsonObject {
             put("servers", JsonArray(listOf(
                 buildJsonObject {
-                    put("address", JsonPrimitive(address))
-                    put("port", JsonPrimitive(port))
-                    put("method", JsonPrimitive(encryption.ifEmpty { "chacha20-ietf-poly1305" }))
-                    put("password", JsonPrimitive(uuid.ifEmpty { "password" }))
+                    put("address", address)
+                    put("port", port)
+                    put("method", encryption.ifEmpty { "chacha20-ietf-poly1305" })
+                    put("password", uuid.ifEmpty { "password" })
                 }
             )))
         })
     }
 
     companion object {
+
         fun fromLink(link: String): Profile? {
             return try {
                 when {
@@ -141,6 +139,7 @@ data class Profile(
             return try {
                 val json = Json { ignoreUnknownKeys = true }
                 val obj = json.parseToJsonElement(jsonString).jsonObject
+
                 Profile(
                     name = obj["name"]?.jsonPrimitive?.content ?: "Imported",
                     type = obj["type"]?.jsonPrimitive?.content?.uppercase() ?: "VLESS",
@@ -153,10 +152,7 @@ data class Profile(
                     realityPublicKey = obj["pbk"]?.jsonPrimitive?.content ?: "",
                     realityShortId = obj["sid"]?.jsonPrimitive?.content ?: ""
                 )
-            } catch (e: Exception) {
-                e.printStackTrace()
-                null
-            }
+            } catch (_: Exception) { null }
         }
 
         private fun parseVless(link: String): Profile {
@@ -165,7 +161,8 @@ data class Profile(
             val rest = parts[1].split("?")
             val addressPort = rest[0].split(":")
             val address = addressPort[0]
-            val port = addressPort[1].toIntOrNull() ?: 443
+            val port = addressPort.getOrNull(1)?.toIntOrNull() ?: 443
+
             val params = rest.getOrNull(1)?.split("&")?.associate {
                 val kv = it.split("=")
                 kv[0] to kv.getOrNull(1).orEmpty()
@@ -188,6 +185,7 @@ data class Profile(
         private fun parseVmess(link: String): Profile {
             val json = String(Base64.decode(link.substringAfter("vmess://"), Base64.DEFAULT))
             val obj = Json.parseToJsonElement(json).jsonObject
+
             return Profile(
                 name = obj["ps"]?.jsonPrimitive?.content ?: "VMESS",
                 type = "VMESS",
@@ -202,9 +200,10 @@ data class Profile(
         private fun parseTrojan(link: String): Profile {
             val parts = link.substringAfter("trojan://").split("@")
             val password = parts[0]
-            val addressPort = parts[1].split(":")[0].split("?")
+            val addressPort = parts[1].split(":")
             val address = addressPort[0]
             val port = addressPort.getOrNull(1)?.toIntOrNull() ?: 443
+
             return Profile(
                 name = "Trojan",
                 type = "TROJAN",
@@ -219,9 +218,11 @@ data class Profile(
             val methodPassword = String(Base64.decode(parts[0], Base64.DEFAULT)).split(":")
             val method = methodPassword[0]
             val password = methodPassword[1]
-            val addressPort = parts[1].split(":")[0].split("?")
+
+            val addressPort = parts[1].split(":")
             val address = addressPort[0]
             val port = addressPort.getOrNull(1)?.toIntOrNull() ?: 443
+
             return Profile(
                 name = "Shadowsocks",
                 type = "SHADOWSOCKS",

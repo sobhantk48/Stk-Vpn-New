@@ -15,11 +15,13 @@ import com.v2ray.app.ui.theme.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddConfigDialog(onDismiss: () -> Unit, onAdd: (Profile) -> Unit) {
+
     var name by remember { mutableStateOf("") }
     var addr by remember { mutableStateOf("") }
     var port by remember { mutableStateOf("443") }
     var type by remember { mutableStateOf("VLESS") }
     var uuid by remember { mutableStateOf("") }
+
     var jsonInput by remember { mutableStateOf("") }
     var parseError by remember { mutableStateOf<String?>(null) }
 
@@ -28,9 +30,11 @@ fun AddConfigDialog(onDismiss: () -> Unit, onAdd: (Profile) -> Unit) {
         title = { Text("Add Config", color = WhiteText) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+                // JSON / LINK INPUT
                 OutlinedTextField(
                     value = jsonInput,
-                    onValueChange = { 
+                    onValueChange = {
                         jsonInput = it
                         parseError = null
                     },
@@ -38,12 +42,13 @@ fun AddConfigDialog(onDismiss: () -> Unit, onAdd: (Profile) -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 5,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = PrimaryBlue,
+                        focusedBorderColor = CyanAccent,
                         unfocusedBorderColor = WhiteText.copy(0.3f),
                         focusedTextColor = WhiteText,
                         unfocusedTextColor = WhiteText
                     )
                 )
+
                 if (parseError != null) {
                     Text(
                         text = parseError!!,
@@ -52,10 +57,13 @@ fun AddConfigDialog(onDismiss: () -> Unit, onAdd: (Profile) -> Unit) {
                         modifier = Modifier.padding(start = 8.dp)
                     )
                 }
+
+                // PARSE + SAMPLE BUTTONS
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+
                     Button(
                         onClick = {
                             try {
@@ -63,6 +71,8 @@ fun AddConfigDialog(onDismiss: () -> Unit, onAdd: (Profile) -> Unit) {
                                     parseError = "Please paste JSON or link"
                                     return@Button
                                 }
+
+                                // Try link first
                                 Profile.fromLink(jsonInput)?.let { p ->
                                     name = p.name
                                     addr = p.address
@@ -70,18 +80,22 @@ fun AddConfigDialog(onDismiss: () -> Unit, onAdd: (Profile) -> Unit) {
                                     type = p.type
                                     uuid = p.uuid
                                     parseError = null
-                                } ?: run {
-                                    Profile.fromJson(jsonInput)?.let { p ->
-                                        name = p.name
-                                        addr = p.address
-                                        port = p.port.toString()
-                                        type = p.type
-                                        uuid = p.uuid
-                                        parseError = null
-                                    } ?: run {
-                                        parseError = "Invalid JSON or link format"
-                                    }
+                                    return@Button
                                 }
+
+                                // Try JSON next
+                                Profile.fromJson(jsonInput)?.let { p ->
+                                    name = p.name
+                                    addr = p.address
+                                    port = p.port.toString()
+                                    type = p.type
+                                    uuid = p.uuid
+                                    parseError = null
+                                    return@Button
+                                }
+
+                                parseError = "Invalid JSON or link format"
+
                             } catch (e: Exception) {
                                 parseError = "Parse error: ${e.message}"
                             }
@@ -92,6 +106,7 @@ fun AddConfigDialog(onDismiss: () -> Unit, onAdd: (Profile) -> Unit) {
                     ) {
                         Text("Parse", color = DarkBackground, fontWeight = FontWeight.Bold)
                     }
+
                     Button(
                         onClick = {
                             jsonInput = """{"name":"Test Server","address":"example.com","port":443,"type":"VLESS","uuid":"00000000-0000-0000-0000-000000000000"}"""
@@ -104,62 +119,75 @@ fun AddConfigDialog(onDismiss: () -> Unit, onAdd: (Profile) -> Unit) {
                         Text("Sample", color = WhiteText, fontSize = 12.sp)
                     }
                 }
+
                 Divider(color = WhiteText.copy(0.2f))
+
+                // NAME
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Name", color = WhiteText.copy(0.7f)) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = PrimaryBlue,
+                        focusedBorderColor = CyanAccent,
                         unfocusedBorderColor = WhiteText.copy(0.3f),
                         focusedTextColor = WhiteText,
                         unfocusedTextColor = WhiteText
                     )
                 )
+
+                // ADDRESS
                 OutlinedTextField(
                     value = addr,
                     onValueChange = { addr = it },
                     label = { Text("Address", color = WhiteText.copy(0.7f)) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = PrimaryBlue,
+                        focusedBorderColor = CyanAccent,
                         unfocusedBorderColor = WhiteText.copy(0.3f),
                         focusedTextColor = WhiteText,
                         unfocusedTextColor = WhiteText
                     )
                 )
+
+                // PORT + UUID
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+
                     OutlinedTextField(
                         value = port,
                         onValueChange = { port = it },
                         label = { Text("Port", color = WhiteText.copy(0.7f)) },
                         modifier = Modifier.weight(1f),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = PrimaryBlue,
+                            focusedBorderColor = CyanAccent,
                             unfocusedBorderColor = WhiteText.copy(0.3f),
                             focusedTextColor = WhiteText,
                             unfocusedTextColor = WhiteText
                         )
                     )
+
                     OutlinedTextField(
                         value = uuid,
                         onValueChange = { uuid = it },
                         label = { Text("UUID", color = WhiteText.copy(0.7f)) },
                         modifier = Modifier.weight(1f),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = PrimaryBlue,
+                            focusedBorderColor = CyanAccent,
                             unfocusedBorderColor = WhiteText.copy(0.3f),
                             focusedTextColor = WhiteText,
                             unfocusedTextColor = WhiteText
                         )
                     )
                 }
+
+                // PROTOCOL DROPDOWN
                 var expanded by remember { mutableStateOf(false) }
+
                 ExposedDropdownMenuBox(
                     expanded = expanded,
                     onExpandedChange = { expanded = it }
                 ) {
+
                     OutlinedTextField(
                         value = type,
                         onValueChange = {},
@@ -168,12 +196,13 @@ fun AddConfigDialog(onDismiss: () -> Unit, onAdd: (Profile) -> Unit) {
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = PrimaryBlue,
+                            focusedBorderColor = CyanAccent,
                             unfocusedBorderColor = WhiteText.copy(0.3f),
                             focusedTextColor = WhiteText,
                             unfocusedTextColor = WhiteText
                         )
                     )
+
                     ExposedDropdownMenu(
                         expanded = expanded,
                         onDismissRequest = { expanded = false }
@@ -191,17 +220,23 @@ fun AddConfigDialog(onDismiss: () -> Unit, onAdd: (Profile) -> Unit) {
                 }
             }
         },
+
+        // CONFIRM BUTTON
         confirmButton = {
             Button(
                 onClick = {
                     if (name.isNotBlank() && addr.isNotBlank() && port.isNotBlank()) {
-                        onAdd(Profile(
+
+                        val p = Profile(
                             name = name,
                             type = type,
                             address = addr,
                             port = port.toIntOrNull() ?: 443,
                             uuid = uuid
-                        ))
+                        )
+
+                        onAdd(p)
+
                     } else {
                         parseError = "Please fill all required fields"
                     }
@@ -212,11 +247,14 @@ fun AddConfigDialog(onDismiss: () -> Unit, onAdd: (Profile) -> Unit) {
                 Text("Add", color = DarkBackground, fontWeight = FontWeight.Bold)
             }
         },
+
+        // CANCEL BUTTON
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Cancel", color = WhiteText)
             }
         },
+
         containerColor = DarkSurface,
         titleContentColor = WhiteText,
         textContentColor = WhiteText

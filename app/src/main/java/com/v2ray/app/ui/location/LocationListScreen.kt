@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -24,6 +25,7 @@ import com.v2ray.app.viewmodel.MainViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocationListScreen(vm: MainViewModel, onBack: () -> Unit) {
+
     val profiles by vm.profiles.collectAsState()
 
     Scaffold(
@@ -35,10 +37,13 @@ fun LocationListScreen(vm: MainViewModel, onBack: () -> Unit) {
                         Icon(Icons.Default.ArrowBack, tint = WhiteText, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = DarkBackground
+                )
             )
         }
     ) { padding ->
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -47,8 +52,8 @@ fun LocationListScreen(vm: MainViewModel, onBack: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(profiles.size) { index ->
-                val p = profiles[index]
+
+            items(profiles, key = { it.id }) { p ->
                 LocationCard(
                     profile = p,
                     selected = p.selected,
@@ -61,15 +66,17 @@ fun LocationListScreen(vm: MainViewModel, onBack: () -> Unit) {
 
 @Composable
 fun LocationCard(profile: Profile, selected: Boolean, onClick: () -> Unit) {
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
         colors = CardDefaults.cardColors(
-            containerColor = if (selected) PrimaryBlue.copy(0.2f) else DarkSurface
+            containerColor = if (selected) PrimaryBlue.copy(0.25f) else DarkSurface
         ),
         shape = RoundedCornerShape(12.dp)
     ) {
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -77,13 +84,30 @@ fun LocationCard(profile: Profile, selected: Boolean, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+
             Column {
-                Text(profile.name.ifEmpty { "Unnamed" }, color = WhiteText, fontWeight = FontWeight.Bold)
-                Text("${profile.type} • ${profile.address}:${profile.port}", color = CyanAccent, fontSize = 12.sp)
-                Text("${profile.ping} ms", color = GreenAccent, fontSize = 12.sp)
+                Text(
+                    profile.name.ifEmpty { "Unnamed" },
+                    color = WhiteText,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+
+                Text(
+                    "${profile.type} • ${profile.address}:${profile.port}",
+                    color = CyanAccent,
+                    fontSize = 12.sp
+                )
+
+                Text(
+                    "${profile.ping} ms",
+                    color = GreenAccent,
+                    fontSize = 12.sp
+                )
             }
+
             Icon(
-                if (selected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                imageVector = if (selected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                 tint = if (selected) GreenAccent else Color.Gray,
                 contentDescription = null
             )

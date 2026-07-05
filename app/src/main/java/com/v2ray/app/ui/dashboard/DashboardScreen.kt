@@ -11,7 +11,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -46,8 +45,18 @@ fun DashboardScreen(
                 drawerContainerColor = DarkSurface,
                 drawerContentColor = WhiteText
             ) {
-                Column(Modifier.fillMaxSize().padding(16.dp)) {
-                    Text("V2RAY STK", color = PrimaryBlue, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 24.dp))
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        "V2RAY STK",
+                        color = PrimaryBlue,
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(bottom = 24.dp)
+                    )
+
                     DrawerItem(Icons.Default.Settings, "Settings", onNavigateToSettings)
                     DrawerItem(Icons.Default.LocationOn, "Location List", onNavigateToLocations)
                     DrawerItem(Icons.Default.Info, "About Us", onNavigateToAbout)
@@ -61,19 +70,25 @@ fun DashboardScreen(
                 TopAppBar(
                     title = { Text("V2RAY STK", color = WhiteText) },
                     navigationIcon = {
-                        IconButton({ scope.launch { if (drawer.isClosed) drawer.open() else drawer.close() } }) {
+                        IconButton({
+                            scope.launch {
+                                if (drawer.isClosed) drawer.open() else drawer.close()
+                            }
+                        }) {
                             Icon(Icons.Default.Menu, tint = WhiteText, contentDescription = "Menu")
                         }
                     },
                     actions = {
                         var expanded by remember { mutableStateOf(false) }
-                        IconButton({ expanded = true }) { Icon(Icons.Default.MoreVert, tint = WhiteText, contentDescription = "Admin") }
+                        IconButton({ expanded = true }) {
+                            Icon(Icons.Default.MoreVert, tint = WhiteText, contentDescription = "Admin")
+                        }
                         DropdownMenu(
                             expanded = expanded,
                             onDismissRequest = { expanded = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Admin Panel", color = WhiteText) },
+                                text = { Text("Admin Panel") },
                                 onClick = {
                                     expanded = false
                                     onAdminClick()
@@ -96,26 +111,39 @@ fun DashboardScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceEvenly
             ) {
+
                 ConnectionStatusSection(state)
+
                 ConnectButton(
                     status = state.status,
                     onClick = {
                         when (state.status) {
-                            ConnectionStatus.IDLE, ConnectionStatus.DISCONNECTED -> current?.let { vm.connect(it) }
+                            ConnectionStatus.IDLE,
+                            ConnectionStatus.DISCONNECTED -> current?.let { vm.connect(it) }
+
                             ConnectionStatus.CONNECTED -> vm.disconnect()
+
                             ConnectionStatus.ERROR -> {
                                 vm.clearError()
                                 current?.let { vm.connect(it) }
                             }
+
                             else -> {}
                         }
                     }
                 )
+
                 CurrentProfileCard(current)
-                Text("v1.0.0", color = WhiteText.copy(0.5f), fontSize = 12.sp)
-                if (state.errorMessage != null) {
+
+                Text(
+                    "v1.0.0",
+                    color = WhiteText.copy(0.5f),
+                    fontSize = 12.sp
+                )
+
+                state.errorMessage?.let {
                     Text(
-                        state.errorMessage!!,
+                        it,
                         color = RedError,
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center
@@ -149,22 +177,28 @@ fun DrawerItem(icon: androidx.compose.ui.graphics.vector.ImageVector, text: Stri
 @Composable
 fun ConnectionStatusSection(state: com.v2ray.app.data.ConnectionState) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+
+        val statusText = when (state.status) {
+            ConnectionStatus.IDLE -> "DISCONNECTED"
+            ConnectionStatus.CONNECTING -> "CONNECTING..."
+            ConnectionStatus.CONNECTED -> "CONNECTED"
+            ConnectionStatus.DISCONNECTED -> "DISCONNECTED"
+            ConnectionStatus.ERROR -> "ERROR"
+        }
+
+        val statusColor = when (state.status) {
+            ConnectionStatus.CONNECTED -> GreenAccent
+            ConnectionStatus.ERROR -> RedError
+            else -> WhiteText.copy(0.7f)
+        }
+
         Text(
-            text = when (state.status) {
-                ConnectionStatus.IDLE -> "DISCONNECTED"
-                ConnectionStatus.CONNECTING -> "CONNECTING..."
-                ConnectionStatus.CONNECTED -> "CONNECTED"
-                ConnectionStatus.DISCONNECTED -> "DISCONNECTED"
-                ConnectionStatus.ERROR -> "ERROR"
-            },
-            color = when (state.status) {
-                ConnectionStatus.CONNECTED -> GreenAccent
-                ConnectionStatus.ERROR -> RedError
-                else -> RedError
-            },
+            text = statusText,
+            color = statusColor,
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold
         )
+
         if (state.status == ConnectionStatus.CONNECTED) {
             Text(
                 text = "CONNECTED: ${state.connectedTime}",
@@ -172,7 +206,9 @@ fun ConnectionStatusSection(state: com.v2ray.app.data.ConnectionState) {
                 fontSize = 14.sp
             )
         }
+
         Spacer(modifier = Modifier.height(8.dp))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
@@ -208,14 +244,17 @@ fun ConnectButton(status: ConnectionStatus, onClick: () -> Unit) {
                 else -> PrimaryBlue
             }
         ),
-        elevation = ButtonDefaults.buttonElevation(8.dp),
         enabled = status != ConnectionStatus.CONNECTING
     ) {
         Text(
             text = when (status) {
-                ConnectionStatus.IDLE, ConnectionStatus.DISCONNECTED -> "CONNECT"
+                ConnectionStatus.IDLE,
+                ConnectionStatus.DISCONNECTED -> "CONNECT"
+
                 ConnectionStatus.CONNECTING -> "CONNECTING"
+
                 ConnectionStatus.CONNECTED -> "DISCONNECT"
+
                 ConnectionStatus.ERROR -> "RETRY"
             },
             color = DarkBackground,
@@ -249,16 +288,22 @@ fun CurrentProfileCard(profile: Profile?) {
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
                 )
+
+                val tlsText =
+                    if (profile.realityPublicKey.isNotBlank()) "Reality" else "TLS"
+
                 Text(
-                    text = profile.type + " • TLS" + if (profile.realityPublicKey.isNotBlank()) " • Reality" else "",
+                    text = "${profile.type} • $tlsText",
                     color = CyanAccent,
                     fontSize = 14.sp
                 )
+
                 Text(
                     text = "${profile.address}:${profile.port}",
                     color = WhiteText.copy(0.7f),
                     fontSize = 12.sp
                 )
+
                 Text(
                     text = "${profile.ping} ms",
                     color = GreenAccent,

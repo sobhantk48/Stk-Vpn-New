@@ -17,10 +17,14 @@ import com.v2ray.app.data.ConnectionStatus
 import com.v2ray.app.data.Profile
 import com.v2ray.app.utils.Logger
 import com.v2ray.app.v2ray.SingBoxManager
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 class V2RayService : VpnService() {
 
@@ -42,8 +46,9 @@ class V2RayService : VpnService() {
                 status = ConnectionStatus.CONNECTING,
                 currentProfile = profile
             )
-            val intent = Intent(ctx, V2RayService::class.java)
-            intent.putExtra("profile", profile as java.io.Serializable)
+            val intent = Intent(ctx, V2RayService::class.java).apply {
+                putExtra("profile", profile as java.io.Serializable)
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 ctx.startForegroundService(intent)
             } else {
@@ -82,7 +87,6 @@ class V2RayService : VpnService() {
                     currentProfile = profile
                 )
 
-                // 1. ساخت VPN interface با استفاده از let برای null-safety
                 val pfd = Builder()
                     .setSession(profile.name)
                     .addAddress("10.0.0.1", 32)
@@ -93,12 +97,10 @@ class V2RayService : VpnService() {
                     .setBlocking(true)
                     .establish()
 
-                this@V2RayService.vpnInterface = pfd
+                vpnInterface = pfd
 
-                // ✅ استفاده از let برای استخراج fd به صورت کاملاً safe
-                val fd = pfd?.let { it.fd } ?: throw Exception("VPN interface is null or invalid")
+                val fd = pfd?.fd ?: throw Exception("VPN interface is null or invalid")
 
-                // 2. مقداردهی اولیه هسته
                 val initResult = singBoxManager.initialize()
                 if (initResult.isFailure) {
                     val err = initResult.exceptionOrNull()
@@ -106,7 +108,6 @@ class V2RayService : VpnService() {
                     return@launch
                 }
 
-                // 3. راه‌اندازی VPN با کانفیگ
                 val configJson = profile.toV2RayConfig()
                 val result = singBoxManager.startV2Ray(configJson, fd)
 
@@ -198,7 +199,8 @@ class V2RayService : VpnService() {
                 singBoxManager.stopV2Ray()
                 vpnInterface?.close()
                 vpnInterface = null
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            }
         }
         singBoxManager.cleanup()
         super.onDestroy()

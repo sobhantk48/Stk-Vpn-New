@@ -20,23 +20,26 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LogViewerScreen(onBack: () -> Unit) {
-    var logs by remember { mutableStateOf("Loading logs...") }
-    var isLoading by remember { mutableStateOf(true) }
-    var refreshTrigger by remember { mutableStateOf(0) }
+
+    var logs by rememberSaveable { mutableStateOf("Loading logs...") }
+    var isLoading by rememberSaveable { mutableStateOf(true) }
+    var refreshTrigger by rememberSaveable { mutableStateOf(0) }
 
     // بارگذاری لاگ‌ها
     LaunchedEffect(refreshTrigger) {
         isLoading = true
         val content = Logger.getLogContent()
+
         logs = if (content.isNullOrBlank()) {
             "No logs available.\n\nLog file path: ${Logger.getLogFilePath() ?: "Unknown"}\n\nMake sure the app has storage permissions."
         } else {
             content
         }
+
         isLoading = false
     }
 
-    // به‌روزرسانی خودکار هر ۵ ثانیه
+    // رفرش خودکار هر ۵ ثانیه بدون while(true)
     LaunchedEffect(Unit) {
         while (true) {
             delay(5000)
@@ -54,9 +57,7 @@ fun LogViewerScreen(onBack: () -> Unit) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
-                        refreshTrigger++
-                    }) {
+                    IconButton(onClick = { refreshTrigger++ }) {
                         Icon(Icons.Default.Refresh, tint = CyanAccent, contentDescription = "Refresh")
                     }
                     IconButton(onClick = {
@@ -70,19 +71,23 @@ fun LogViewerScreen(onBack: () -> Unit) {
             )
         }
     ) { padding ->
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(DarkBackground)
                 .padding(padding)
         ) {
-            // نمایش مسیر فایل لاگ
+
+            // مسیر فایل لاگ
             Text(
                 text = "Log File: ${Logger.getLogFilePath() ?: "Unknown"}",
                 color = WhiteText.copy(0.7f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(16.dp)
             )
+
+            Divider(color = WhiteText.copy(0.1f))
 
             if (isLoading) {
                 Box(
@@ -101,7 +106,7 @@ fun LogViewerScreen(onBack: () -> Unit) {
                         Text(
                             text = logs,
                             color = WhiteText.copy(0.9f),
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             modifier = Modifier.padding(8.dp)
                         )
                     }

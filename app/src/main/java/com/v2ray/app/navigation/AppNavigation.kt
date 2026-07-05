@@ -2,9 +2,11 @@ package com.v2ray.app.navigation
 
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -19,20 +21,26 @@ import com.v2ray.app.ui.settings.SettingsScreen
 import com.v2ray.app.ui.splash.SplashScreen
 import com.v2ray.app.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable
 fun AppNavigation() {
+
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val viewModel: MainViewModel = viewModel()
+
+    // استفاده از HiltViewModel برای جلوگیری از نشت و مشکلات DI
+    val viewModel: MainViewModel = hiltViewModel()
+
     val adminLoggedIn by AdminSession.loggedIn.collectAsState()
 
     NavHost(
         navController = navController,
         startDestination = AppRoutes.SPLASH
     ) {
+
         composable(AppRoutes.SPLASH) {
             SplashScreen(
                 onFinish = {
@@ -42,6 +50,7 @@ fun AppNavigation() {
                 }
             )
         }
+
         composable(AppRoutes.HOME) {
             DashboardScreen(
                 nav = navController,
@@ -71,6 +80,7 @@ fun AppNavigation() {
                 }
             )
         }
+
         composable(AppRoutes.ADMIN_LOGIN) {
             AdminLoginScreen(
                 onSuccess = {
@@ -81,29 +91,38 @@ fun AppNavigation() {
                 onBack = { navController.popBackStack() }
             )
         }
+
         composable(AppRoutes.ADMIN) {
             AdminScreen(
                 vm = viewModel,
                 onBack = { navController.popBackStack() }
             )
         }
+
         composable(AppRoutes.SETTINGS) {
             SettingsScreen(
                 vm = viewModel,
                 onBack = { navController.popBackStack() }
             )
         }
+
         composable(AppRoutes.LOCATION_LIST) {
             LocationListScreen(
                 vm = viewModel,
                 onBack = { navController.popBackStack() }
             )
         }
+
         composable(AppRoutes.ABOUT) {
-            AboutScreen(onBack = { navController.popBackStack() })
+            AboutScreen(
+                onBack = { navController.popBackStack() }
+            )
         }
+
         composable(AppRoutes.LOGS) {
-            LogViewerScreen(onBack = { navController.popBackStack() })
+            LogViewerScreen(
+                onBack = { navController.popBackStack() }
+            )
         }
     }
 }

@@ -18,8 +18,12 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            isMinifyEnabled = true
+            shrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 
@@ -67,12 +71,17 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
+    // ML Kit Barcode Scanner (برای QR)
     implementation("com.google.mlkit:barcode-scanning:17.2.0")
+
+    // CameraX فقط بخش‌های لازم برای QR
     implementation("androidx.camera:camera-camera2:1.3.0")
     implementation("androidx.camera:camera-lifecycle:1.3.0")
-    implementation("androidx.camera:camera-view:1.3.0")
 
-    // ✅ استفاده از libbox.aar محلی
+    // حذف camera-view و camera-video چون سنگین هستند
+    // implementation("androidx.camera:camera-view:1.3.0")
+    // implementation("androidx.camera:camera-video:1.3.0")
+
     implementation(files("libs/libbox.aar"))
 
     debugImplementation("androidx.compose.ui:ui-tooling")

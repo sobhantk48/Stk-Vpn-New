@@ -4,22 +4,25 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 
-private val DarkColorScheme = darkColorScheme(
-    background = DarkBackground,
-    surface = DarkSurface,
+private val DarkColors = darkColorScheme(
     primary = PrimaryBlue,
     secondary = CyanAccent,
+    background = DarkBackground,
+    surface = DarkSurface,
+    error = RedError,
+    onPrimary = WhiteText,
+    onSecondary = WhiteText,
     onBackground = WhiteText,
     onSurface = WhiteText,
-    error = RedError
+    onError = WhiteText
 )
 
 @Composable
-fun V2rayAppTheme(content: @Composable () -> Unit) {
+fun AppTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = DarkColorScheme,
-        typography = V2rayTypography,
-        shapes = V2rayShapes,
+        colorScheme = DarkColors,
+        typography = Typography,
+        shapes = Shapes,
         content = content
     )
 }

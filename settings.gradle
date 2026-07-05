@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "V2ray-STK"
+rootProject.name = "Stkvpn"
 include(":app")

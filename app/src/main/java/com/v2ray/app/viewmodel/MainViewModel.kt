@@ -31,19 +31,21 @@ class MainViewModel(private val repository: ProfileRepository) : ViewModel() {
     }
 
     fun connect(profile: Profile) {
-        println("Connecting to ${profile.name}")
-        // منطق اتصال
+        _uiState.value = _uiState.value.copy(
+            connectionState = ConnectionState(status = ConnectionStatus.CONNECTING)
+        )
+        // TODO: پیاده‌سازی اتصال به V2Ray
     }
 
     fun disconnect() {
-        println("Disconnecting")
-        // منطق قطع اتصال
+        _uiState.value = _uiState.value.copy(
+            connectionState = ConnectionState(status = ConnectionStatus.DISCONNECTED)
+        )
     }
 
     fun delete(profile: Profile) {
         val updatedList = _uiState.value.profiles.filter { it.id != profile.id }
         _uiState.value = _uiState.value.copy(profiles = updatedList)
-        // ذخیره در ریپازیتوری
     }
 
     fun update(profile: Profile) {
@@ -51,12 +53,6 @@ class MainViewModel(private val repository: ProfileRepository) : ViewModel() {
             if (it.id == profile.id) profile else it
         }
         _uiState.value = _uiState.value.copy(profiles = updatedList)
-        // ذخیره در ریپازیتوری
-    }
-
-    fun select(profile: Profile) {
-        // انتخاب پروفایل
-        println("Selected ${profile.name}")
     }
 
     data class UiState(

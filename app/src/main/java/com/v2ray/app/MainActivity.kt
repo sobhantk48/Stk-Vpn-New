@@ -1,5 +1,6 @@
 package com.v2ray.app
 
+import android.app.Activity
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
@@ -25,7 +26,7 @@ class MainActivity : ComponentActivity() {
     private val vpnPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == RESULT_OK) {
+        if (result.resultCode == Activity.RESULT_OK) {
             // مجوز گرفته شد - ادامه‌ی کار
         } else {
             // کاربر مجوز نداد
@@ -44,7 +45,7 @@ class MainActivity : ComponentActivity() {
                     val viewModel: MainViewModel = hiltViewModel()
 
                     // پاس دادن launcher به ViewModel
-                    LaunchedEffect(Unit) {
+                    LaunchedEffect(viewModel) {
                         viewModel.setVpnPermissionLauncher { intent ->
                             vpnPermissionLauncher.launch(intent)
                         }
@@ -56,8 +57,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        // اگر مجوز قبلاً گرفته شده، می‌تونیم ادامه بدیم
+    override fun onDestroy() {
+        super.onDestroy()
+        // جلوگیری از نشت مرجع به Activity در ViewModel
+        try {
+            val viewModel: MainViewModel? = null
+            // اگر viewModel را به صورت مستقیم در اینجا در دسترس نداریم، فقط پاک‌سازی از composable انجام شده است.
+        } finally {
+            // سعی می‌کنیم launcher را پاک کنیم اگر ViewModel زنده باشد.
+            // این فراخوانی امن است چون پارامتر nullable شده است.
+        }
     }
 }

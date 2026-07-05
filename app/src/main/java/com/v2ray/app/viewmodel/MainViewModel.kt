@@ -1,6 +1,8 @@
 package com.v2ray.app.viewmodel
 
 import android.app.Application
+import android.content.Intent
+import android.net.VpnService
 import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -17,6 +19,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
+
+    private var vpnPermissionLauncher: ((Intent) -> Unit)? = null
+
     private val _state = MutableStateFlow(ConnectionState())
     val state: StateFlow<ConnectionState> = _state.asStateFlow()
 
@@ -34,20 +39,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val selected = list.firstOrNull { it.selected }
                 _current.value = selected
                 Logger.writeLog("Profiles updated: ${list.size}, selected: ${selected?.name}")
-                // اگر selected وجود ندارد و لیست خالی نیست، اولین را انتخاب کن
                 if (list.isNotEmpty() && selected == null) {
                     select(list.first().id)
                 }
             }
         }
 
-        // دریافت وضعیت از سرویس به‌جای observeState
         viewModelScope.launch {
             V2RayService.state.collect { newState ->
                 _state.value = newState
                 Logger.writeLog("State updated from service: ${newState.status}")
             }
         }
+    }
+
+    fun setVpnPermissionLauncher(launcher: (Intent) -> Unit) {
+        vpnPermissionLauncher = launcher
     }
 
     fun getSelectedProfile(): Profile? {
@@ -58,7 +65,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun connect(profile: Profile) {
         Logger.writeLog("connect: ${profile.name}")
-        V2RayService.start(getApplication(), profile)
+
+        val context = getApplication<Application>()
+        val intent = VpnService.prepare(context)
+
+        if (intent == null) {
+            // مجوز قبلاً داده شده، مستقیماً سرویس را شروع کن
+            V2RayService.start(context, profile)
+        } else {
+            // نیاز به مجوز داریم
+            vpnPermissionLauncher?.invoke(intent) ?: run {
+                // اگر launcher وجود نداشت (نباید رخ بدهد)
+                Toast.makeText(context, "خطا در دریافت مجوز VPN", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     fun disconnect() {
@@ -75,7 +95,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun add(profile: Profile) {
         Logger.writeLog("add profile: ${profile.name}")
         ProfileRepository.add(profile)
-        // بعد از اضافه کردن، پروفایل جدید را انتخاب کن
         _current.value = ProfileRepository.getSelected()
     }
 

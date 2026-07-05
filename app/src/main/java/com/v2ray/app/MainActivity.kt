@@ -1,83 +1,63 @@
 package com.v2ray.app
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
+import android.content.Intent
+import android.net.VpnService
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.v2ray.app.navigation.AppNavigation
 import com.v2ray.app.ui.theme.V2rayAppTheme
-import com.v2ray.app.utils.Logger
+import com.v2ray.app.viewmodel.MainViewModel
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    // Launcher برای دریافت مجوز VPN
+    private val vpnPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            // مجوز گرفته شد - ادامه‌ی کار
+        } else {
+            // کاربر مجوز نداد
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Logger.initialize(this)
-        Logger.writeLog("MainActivity started")
-
-        requestPermissions()
 
         setContent {
             V2rayAppTheme {
-                AppNavigation()
-            }
-        }
-        Logger.writeLog("Compose loaded")
-    }
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    val viewModel: MainViewModel = hiltViewModel()
 
-    private fun requestPermissions() {
-        val permissions = mutableListOf<String>()
+                    // پاس دادن launcher به ViewModel
+                    LaunchedEffect(Unit) {
+                        viewModel.setVpnPermissionLauncher { intent ->
+                            vpnPermissionLauncher.launch(intent)
+                        }
+                    }
 
-        // مجوز ذخیره‌سازی (Android 9 و پایین‌تر)
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED) {
-                permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            }
-        }
-
-        // مجوز نوتیفیکیشن (Android 13+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
-                permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-
-        // مجوز دوربین (برای اسکن QR)
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            != PackageManager.PERMISSION_GRANTED) {
-            permissions.add(Manifest.permission.CAMERA)
-        }
-
-        // مجوز مدیریت حافظه برای Android 11+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (!android.os.Environment.isExternalStorageManager()) {
-                // این مجوز باید از طریق Intent درخواست شود
-                Logger.writeLog("MANAGE_EXTERNAL_STORAGE not granted")
-            }
-        }
-
-        if (permissions.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, permissions.toTypedArray(), 100)
-        }
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 100) {
-            grantResults.forEachIndexed { index, result ->
-                if (result == PackageManager.PERMISSION_GRANTED) {
-                    Logger.writeLog("Permission granted: ${permissions[index]}")
-                    Toast.makeText(this, "Permission granted: ${permissions[index]}", Toast.LENGTH_SHORT).show()
-                } else {
-                    Logger.writeLog("Permission denied: ${permissions[index]}")
+                    AppNavigation(viewModel = viewModel)
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // اگر مجوز قبلاً گرفته شده، می‌تونیم ادامه بدیم
     }
 }

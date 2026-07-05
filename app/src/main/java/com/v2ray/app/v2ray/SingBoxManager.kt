@@ -10,7 +10,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.io.File
 
 class SingBoxManager(private val context: Context) {
 
@@ -18,12 +17,10 @@ class SingBoxManager(private val context: Context) {
         private const val TAG = "SingBoxManager"
         private const val LOG_LEVEL = "warn"
 
-        // Enum برای وضعیت‌های هسته
         enum class CoreState {
             IDLE, CONNECTING, CONNECTED, DISCONNECTED, ERROR
         }
 
-        // StateFlow برای انتشار وضعیت
         private val _coreState = MutableStateFlow(CoreState.IDLE)
         val coreState: StateFlow<CoreState> = _coreState.asStateFlow()
     }
@@ -93,10 +90,17 @@ class SingBoxManager(private val context: Context) {
 
                 val ctrl = controller ?: throw Exception("CoreController is null")
 
+                // اگر VPN در حال اجراست، اول متوقفش کن
                 if (isRunning) {
                     stopV2Ray().getOrThrow()
                 }
 
+                // اطمینان از اینکه فایل دیسکریپتور معتبر است
+                if (vpnFd <= 0) {
+                    throw Exception("Invalid VPN file descriptor: $vpnFd")
+                }
+
+                Log.d(TAG, "Starting V2Ray with fd: $vpnFd")
                 ctrl.startLoop(configJson, vpnFd)
                 isRunning = true
                 _coreState.value = CoreState.CONNECTED

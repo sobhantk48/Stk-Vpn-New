@@ -94,8 +94,12 @@ class V2RayService : VpnService() {
 
                 val vpnInterface = vpnBuilder.establish()
                 this@V2RayService.vpnInterface = vpnInterface
+
                 // استفاده از safe call برای جلوگیری از خطای کامپایلر
-                val fd = vpnInterface?.fd ?: throw Exception("VPN interface is null")
+                val fd = vpnInterface?.fd
+                if (fd == null || fd <= 0) {
+                    throw Exception("VPN interface is null or invalid")
+                }
 
                 // 2. مقداردهی اولیه هسته
                 val initResult = singBoxManager.initialize()

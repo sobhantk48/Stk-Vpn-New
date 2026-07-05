@@ -1,4 +1,4 @@
-name: Android CI Ultra-Pro
+name: Android CI Ultra-Pro-Max
 
 on:
   push:
@@ -30,7 +30,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Build Release (Ultra-Pro filtered output)
+      - name: Build Release (Ultra-Pro-Max filtered output)
         run: |
           echo "🚀 Running Gradle build..."
           ./gradlew assembleRelease --stacktrace --warning-mode=none > full_log.txt 2>&1
@@ -40,14 +40,25 @@ jobs:
 
           # Kotlin errors
           grep -i "e: " full_log.txt || true
+          grep -i "Unresolved reference" full_log.txt || true
 
-          # General Gradle errors
+          # Java errors
+          grep -i "cannot find symbol" full_log.txt || true
+          grep -i "class not found" full_log.txt || true
+
+          # Gradle errors
           grep -i "error" full_log.txt || true
-
-          # Task failures
-          grep -i "FAILED" full_log.txt || true
           grep -i "Execution failed" full_log.txt || true
           grep -i "Build failed" full_log.txt || true
+          grep -i "> A failure occurred" full_log.txt || true
+
+          # Missing / Not found
+          grep -i "not found" full_log.txt || true
+          grep -i "file not found" full_log.txt || true
+          grep -i "could not resolve" full_log.txt || true
+
+          # Duplicate class
+          grep -i "Duplicate class" full_log.txt || true
 
           # Exceptions
           grep -i "Exception" full_log.txt || true
@@ -65,6 +76,7 @@ jobs:
 
           # Compose compiler errors
           grep -i "compose" full_log.txt || true
+          grep -i "Composable" full_log.txt || true
 
           # Hilt errors
           grep -i "hilt" full_log.txt || true

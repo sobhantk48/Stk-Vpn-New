@@ -30,29 +30,27 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Build Release (Direct output + filtered + tail)
+      - name: Build Release (only errors)
         run: |
-          echo "🚀 Running Gradle build (direct output)..."
-          ./gradlew assembleRelease --stacktrace --warning-mode=none | tee full_log.txt
+          echo "🚀 Running Gradle build (errors only)..."
+          # اجرای بیلد و ذخیره کامل خروجی در فایل موقت
+          ./gradlew assembleRelease --stacktrace --warning-mode=none 2>&1 | tee /tmp/build.log > /dev/null
 
-          echo "❌ Filtered errors:"
-          echo "----------------------------------------"
+          echo "::group::🔴 Compilation Errors"
+          # جستجوی خطاهای مربوط به کاتلین و سایر خطاها
+          grep -E "e: |error:|FAILED|Exception|Unresolved reference|cannot find symbol|not found|could not resolve|> A failure occurred" /tmp/build.log || echo "✅ No critical errors found"
+          echo "::endgroup::"
 
-          grep -i "error" full_log.txt || true
-          grep -i "FAILED" full_log.txt || true
-          grep -i "Exception" full_log.txt || true
-          grep -i "Unresolved reference" full_log.txt || true
-          grep -i "cannot find symbol" full_log.txt || true
-          grep -i "not found" full_log.txt || true
-          grep -i "could not resolve" full_log.txt || true
-          grep -i "> A failure occurred" full_log.txt || true
+          # اگر خطایی وجود داشت، با کد خروج ۱ خاتمه بده
+          if grep -q -E "e: |FAILED|BUILD FAILED" /tmp/build.log; then
+            echo "::error::Build failed - check errors above"
+            exit 1
+          fi
 
-          echo "----------------------------------------"
-          echo "🔍 Last 200 lines:"
-          tail -n 200 full_log.txt
-
-      - name: Upload full log artifact
+      - name: Upload full log artifact (optional)
         uses: actions/upload-artifact@v4
         with:
           name: full-log
-          path: full_log.txt
+          path: /tmp/build.log
+          if-no-files-found: ignore
+          retention-days: 7

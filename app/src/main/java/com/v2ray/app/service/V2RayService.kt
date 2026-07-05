@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class V2RayService : Service() {
+class V2RayService : VpnService() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var singBoxManager: SingBoxManager
@@ -84,7 +84,8 @@ class V2RayService : Service() {
                 )
 
                 // 1. آماده‌سازی VpnService
-                val vpnBuilder = VpnService.Builder()
+                // چون کلاس از VpnService ارث‌بری کرده، Builder مستقیماً در دسترس است
+                val vpnBuilder = Builder()
                     .setSession(profile.name)
                     .addAddress("10.0.0.1", 32)
                     .addRoute("0.0.0.0", 0)
@@ -193,7 +194,7 @@ class V2RayService : Service() {
 
     override fun onDestroy() {
         if (vpnInterface != null) {
-            scope.launch {
+            runBlocking {
                 singBoxManager.stopV2Ray()
                 vpnInterface?.close()
                 vpnInterface = null

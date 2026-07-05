@@ -41,8 +41,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        V2RayService.observeState { newState ->
-            _state.value = newState
+        // دریافت وضعیت از سرویس به‌جای observeState
+        viewModelScope.launch {
+            V2RayService.state.collect { newState ->
+                _state.value = newState
+                Logger.writeLog("State updated from service: ${newState.status}")
+            }
         }
     }
 

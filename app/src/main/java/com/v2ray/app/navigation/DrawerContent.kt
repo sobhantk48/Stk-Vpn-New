@@ -2,6 +2,7 @@ package com.v2ray.app.navigation
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DrawerDefaults
 import androidx.compose.material3.ModalDrawerSheet

@@ -56,10 +56,6 @@ class V2RayService : Service() {
             Logger.writeLog("V2RayService stop requested")
             ctx.stopService(Intent(ctx, V2RayService::class.java))
         }
-
-        internal fun updateState(newState: ConnectionState) {
-            _state.value = newState
-        }
     }
 
     override fun onCreate() {
@@ -68,24 +64,6 @@ class V2RayService : Service() {
         createChannel()
         startForeground(NOTIF_ID, buildNotification("Initializing..."))
         Logger.writeLog("V2RayService created")
-
-        // گوش دادن به تغییرات وضعیت از SingBoxManager
-        scope.launch {
-            singBoxManager.coreState.collect { coreState ->
-                val currentStatus = when (coreState) {
-                    com.v2ray.app.v2ray.CoreState.IDLE -> ConnectionStatus.IDLE
-                    com.v2ray.app.v2ray.CoreState.CONNECTING -> ConnectionStatus.CONNECTING
-                    com.v2ray.app.v2ray.CoreState.CONNECTED -> ConnectionStatus.CONNECTED
-                    com.v2ray.app.v2ray.CoreState.DISCONNECTED -> ConnectionStatus.DISCONNECTED
-                    com.v2ray.app.v2ray.CoreState.ERROR -> ConnectionStatus.ERROR
-                }
-                _state.value = _state.value.copy(
-                    status = currentStatus,
-                    currentProfile = currentProfile
-                )
-                Logger.writeLog("State updated from core: $currentStatus")
-            }
-        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -115,14 +93,11 @@ class V2RayService : Service() {
                     .setMtu(1500)
                     .setBlocking(true)
 
-                // اینجا باید packageName رو هم اضافه کنی تا VPN فقط برای این اپ فعال بشه
-                // vpnBuilder.addDisallowedApplication(packageName)
-
                 val vpnInterface = vpnBuilder.establish()
                 this@V2RayService.vpnInterface = vpnInterface
                 val fd = vpnInterface.fd
 
-                // 2. مقداردهی اولیه و راه‌اندازی هسته
+                // 2. مقداردهی اولیه هسته
                 val initResult = singBoxManager.initialize()
                 if (initResult.isFailure) {
                     val err = initResult.exceptionOrNull()
@@ -130,7 +105,7 @@ class V2RayService : Service() {
                     return@launch
                 }
 
-                // 3. راه‌اندازی VPN با کانفیگ
+                // 3. راه‌اندازی VPN
                 val configJson = profile.toV2RayConfig()
                 val result = singBoxManager.startV2Ray(configJson, fd)
 
@@ -159,14 +134,12 @@ class V2RayService : Service() {
             status = ConnectionStatus.ERROR,
             errorMessage = message
         )
-        // بستن VpnInterface در صورت وجود
         vpnInterface?.close()
         vpnInterface = null
-        // توقف سرویس
         stopSelf()
     }
 
-    fun disconnect() {
+    private fun disconnect() {
         scope.launch {
             try {
                 singBoxManager.stopV2Ray()
@@ -219,9 +192,12 @@ class V2RayService : Service() {
     }
 
     override fun onDestroy() {
-        // جلوگیری از دوبار اجرا شدن disconnect
         if (vpnInterface != null) {
-            disconnect()
+            scope.launch {
+                singBoxManager.stopV2Ray()
+                vpnInterface?.close()
+                vpnInterface = null
+            }
         }
         singBoxManager.cleanup()
         super.onDestroy()

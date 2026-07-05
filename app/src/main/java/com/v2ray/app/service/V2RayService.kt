@@ -29,14 +29,12 @@ class V2RayService : Service() {
         private const val NOTIF_ID = 1001
         private const val CHANNEL_ID = "v2ray_channel"
 
-        // StateFlow برای انتشار وضعیت
         private val _state = MutableStateFlow(ConnectionState())
         val state: StateFlow<ConnectionState> = _state.asStateFlow()
 
         fun start(ctx: Context, profile: Profile) {
             Logger.writeLog("V2RayService start: ${profile.name}")
-            // وضعیت را به Connecting تنظیم می‌کنیم
-            _state.value = ConnectionState(status = ConnectionStatus.CONNECTING, message = "Connecting...")
+            _state.value = ConnectionState(status = ConnectionStatus.CONNECTING)
             val intent = Intent(ctx, V2RayService::class.java)
             intent.putExtra("profile", profile as java.io.Serializable)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -47,11 +45,10 @@ class V2RayService : Service() {
         }
 
         fun stop(ctx: Context) {
-            _state.value = ConnectionState(status = ConnectionStatus.DISCONNECTED, message = "Disconnected")
+            _state.value = ConnectionState(status = ConnectionStatus.DISCONNECTED)
             ctx.stopService(Intent(ctx, V2RayService::class.java))
         }
 
-        // متد کمکی برای به‌روزرسانی وضعیت از داخل سرویس
         internal fun updateState(newState: ConnectionState) {
             _state.value = newState
         }
@@ -74,22 +71,43 @@ class V2RayService : Service() {
         scope.launch {
             try {
                 updateNotification("Connecting to ${profile.name}...")
-                // به‌روزرسانی وضعیت به Connecting
-                Companion.updateState(ConnectionState(status = ConnectionStatus.CONNECTING, message = "Connecting to ${profile.name}..."))
+                Companion.updateState(
+                    ConnectionState(
+                        status = ConnectionStatus.CONNECTING,
+                        currentProfile = profile
+                    )
+                )
 
                 val result = manager.startV2Ray(profile.toV2RayConfig())
                 if (result.isSuccess) {
                     updateNotification("Connected to ${profile.name}")
-                    Companion.updateState(ConnectionState(status = ConnectionStatus.CONNECTED, message = "Connected to ${profile.name}", profile = profile))
+                    Companion.updateState(
+                        ConnectionState(
+                            status = ConnectionStatus.CONNECTED,
+                            currentProfile = profile
+                        )
+                    )
                 } else {
                     val err = result.exceptionOrNull()
                     updateNotification("Connection failed: ${err?.message}")
-                    Companion.updateState(ConnectionState(status = ConnectionStatus.ERROR, errorMessage = err?.message ?: "Unknown error"))
+                    Companion.updateState(
+                        ConnectionState(
+                            status = ConnectionStatus.ERROR,
+                            currentProfile = profile,
+                            errorMessage = err?.message ?: "Unknown error"
+                        )
+                    )
                 }
             } catch (e: Exception) {
                 Logger.writeError("Connect error", e)
                 updateNotification("Error: ${e.message}")
-                Companion.updateState(ConnectionState(status = ConnectionStatus.ERROR, errorMessage = e.message ?: "Unknown error"))
+                Companion.updateState(
+                    ConnectionState(
+                        status = ConnectionStatus.ERROR,
+                        currentProfile = profile,
+                        errorMessage = e.message ?: "Unknown error"
+                    )
+                )
             }
         }
     }
@@ -98,7 +116,11 @@ class V2RayService : Service() {
         scope.launch {
             manager.stopV2Ray()
             updateNotification("Disconnected")
-            Companion.updateState(ConnectionState(status = ConnectionStatus.DISCONNECTED, message = "Disconnected"))
+            Companion.updateState(
+                ConnectionState(
+                    status = ConnectionStatus.DISCONNECTED
+                )
+            )
             stopSelf()
             Logger.writeLog("V2RayService disconnected")
         }

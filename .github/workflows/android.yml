@@ -30,24 +30,28 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Build Release (only errors)
+      - name: Build Release (full log on error)
         run: |
-          echo "🚀 Running Gradle build (errors only)..."
+          echo "🚀 Running Gradle build..."
           # اجرای بیلد و ذخیره کامل خروجی در فایل موقت
-          ./gradlew assembleRelease --stacktrace --warning-mode=none 2>&1 | tee /tmp/build.log > /dev/null
+          ./gradlew assembleRelease --stacktrace --warning-mode=none 2>&1 | tee /tmp/build.log
 
-          echo "::group::🔴 Compilation Errors"
-          # جستجوی خطاهای مربوط به کاتلین و سایر خطاها
-          grep -E "e: |error:|FAILED|Exception|Unresolved reference|cannot find symbol|not found|could not resolve|> A failure occurred" /tmp/build.log || echo "✅ No critical errors found"
+          echo "::group::🔴 Compilation Errors (filtered)"
+          grep -E "e: |error:|FAILED|Exception|Unresolved reference|cannot find symbol|not found|could not resolve|> A failure occurred" /tmp/build.log || echo "✅ No critical errors found in filtered search"
           echo "::endgroup::"
 
-          # اگر خطایی وجود داشت، با کد خروج ۱ خاتمه بده
+          # اگر خطایی وجود داشت، کل لاگ رو چاپ کن
           if grep -q -E "e: |FAILED|BUILD FAILED" /tmp/build.log; then
-            echo "::error::Build failed - check errors above"
+            echo "::error::Build failed - printing full log below:"
+            echo "==================== FULL LOG START ===================="
+            cat /tmp/build.log
+            echo "==================== FULL LOG END ===================="
             exit 1
+          else
+            echo "✅ Build successful - no critical errors"
           fi
 
-      - name: Upload full log artifact (optional)
+      - name: Upload full log artifact (always)
         uses: actions/upload-artifact@v4
         with:
           name: full-log

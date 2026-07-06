@@ -59,11 +59,8 @@ object BackupManager {
                 }
             }
 
-            // استفاده از Json.encodeToString بدون serializer
-            val jsonString = Json { prettyPrint = true }.encodeToString(
-                kotlinx.serialization.builtins.serializer(),
-                jsonArray
-            )
+            // استفاده از Json.encodeToString بدون نیاز به serializer اضافی
+            val jsonString = Json { prettyPrint = true }.encodeToString(jsonArray)
 
             FileOutputStream(backupFile).use { outputStream ->
                 outputStream.write(jsonString.toByteArray(Charsets.UTF_8))

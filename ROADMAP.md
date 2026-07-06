@@ -11,8 +11,8 @@
 |-----|-------|-------------|--------|
 | **فاز ۰** | آماده‌سازی و برنامه‌ریزی | ۲ | ✅ انجام شد |
 | **فاز ۱** | اضافه کردن پارسر لینک‌ها و تست سرعت | ۴ | ✅ انجام شد |
-| **فاز ۲** | پیاده‌سازی SNI Tunnel | ۳ | ❌ انجام نشده |
-| **فاز ۳** | پیاده‌سازی Domain Fronting | ۳ | ❌ انجام نشده |
+| **فاز ۲** | پیاده‌سازی SNI Tunnel | ۳ | ✅ انجام شد |
+| **فاز ۳** | پیاده‌سازی Domain Fronting | ۳ | ✅ انجام شد |
 | **فاز ۴** | اضافه کردن Desync و Fragment | ۲ | ❌ انجام نشده |
 | **فاز ۵** | Kill Switch و Split Tunneling | ۳ | ❌ انجام نشده |
 | **فاز ۶** | Recent Activity و پشتیبان‌گیری | ۳ | ❌ انجام نشده |
@@ -37,16 +37,16 @@
 ---
 
 ### فاز ۲: SNI Tunnel
-- [ ] **۲-۱**: طراحی کلاس `SniTunnelManager.kt`
-- [ ] **۲-۲**: پیاده‌سازی پروکسی TCP با تغییر SNI
-- [ ] **۲-۳**: ادغام با `SingBoxManager` و اضافه کردن دکمه‌ی SNI به UI
+- [x] **۲-۱**: طراحی کلاس `SniTunnelManager.kt`
+- [x] **۲-۲**: پیاده‌سازی پروکسی TCP با تغییر SNI
+- [x] **۲-۳**: ادغام با `SingBoxManager` و اضافه کردن دکمه‌ی SNI به UI
 
 ---
 
 ### فاز ۳: Domain Fronting
-- [ ] **۳-۱**: طراحی کلاس `FrontingManager.kt`
-- [ ] **۳-۲**: پیاده‌سازی CA محلی و صدور گواهی موقت
-- [ ] **۳-۳**: پیاده‌سازی پروکسی MITM و DoH resolver
+- [x] **۳-۱**: طراحی کلاس `FrontingManager.kt` (شامل ProxyServer, CertificateManager, DohResolver)
+- [x] **۳-۲**: پیاده‌سازی CA محلی و صدور گواهی موقت
+- [x] **۳-۳**: پیاده‌سازی پروکسی MITM و DoH resolver
 
 ---
 
@@ -85,7 +85,7 @@
 | ۱-۱ تا ۱-۲ | `ProfileParser.kt` | – |
 | ۱-۳ تا ۱-۴ | `SpeedTester.kt` | `DashboardScreen.kt`, `MainViewModel.kt` |
 | ۲-۱ تا ۲-۳ | `SniTunnelManager.kt` | `SingBoxManager.kt`, `DashboardScreen.kt` |
-| ۳-۱ تا ۳-۳ | `FrontingManager.kt` | – |
+| ۳-۱ تا ۳-۳ | `FrontingManager.kt`, `CertificateManager.kt`, `DohResolver.kt`, `ProxyServer.kt` | `DashboardScreen.kt`, `MainViewModel.kt`, `build.gradle` |
 | ۴-۱ تا ۴-۲ | `DesyncManager.kt` | – |
 | ۵-۱ تا ۵-۳ | – | `VpnService.kt`, `SettingsScreen.kt` |
 | ۶-۱ تا ۶-۳ | `ConnectionHistory.kt` | `DashboardScreen.kt` |
@@ -103,5 +103,5 @@
 
 ## 🟢 وضعیت فعلی
 - **تاریخ شروع:** ۱۴۰۵-۰۴-۱۵
-- **فاز فعال:** فاز ۲
-- **وظیفه فعال:** ۲-۱ (طراحی SNI Tunnel)
+- **فاز فعال:** فاز ۴ (Desync و Fragment)
+- **وظیفه فعال:** ۴-۱ (ترجمه desync package)

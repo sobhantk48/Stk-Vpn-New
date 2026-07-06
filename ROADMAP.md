@@ -13,7 +13,7 @@
 | **فاز ۱** | اضافه کردن پارسر لینک‌ها و تست سرعت | ۴ | ✅ انجام شد |
 | **فاز ۲** | پیاده‌سازی SNI Tunnel | ۳ | ✅ انجام شد |
 | **فاز ۳** | پیاده‌سازی Domain Fronting | ۳ | ✅ انجام شد |
-| **فاز ۴** | اضافه کردن Desync و Fragment | ۲ | ❌ انجام نشده |
+| **فاز ۴** | اضافه کردن Desync و Fragment | ۲ | ✅ انجام شد |
 | **فاز ۵** | Kill Switch و Split Tunneling | ۳ | ❌ انجام نشده |
 | **فاز ۶** | Recent Activity و پشتیبان‌گیری | ۳ | ❌ انجام نشده |
 | **فاز ۷** | بهبود UI/UX و انتشار | ۴ | ❌ انجام نشده |
@@ -51,8 +51,8 @@
 ---
 
 ### فاز ۴: Desync و Fragment
-- [ ] **۴-۱**: ترجمه `desync` package به Kotlin
-- [ ] **۴-۲**: اضافه کردن گزینه‌های Fragment به UI
+- [x] **۴-۱**: ترجمه `desync` package به Kotlin (`FragmentManager.kt`, `DesyncManager.kt`)
+- [x] **۴-۲**: اضافه کردن گزینه‌های Fragment به UI (`SettingsScreen.kt`)
 
 ---
 
@@ -85,8 +85,8 @@
 | ۱-۱ تا ۱-۲ | `ProfileParser.kt` | – |
 | ۱-۳ تا ۱-۴ | `SpeedTester.kt` | `DashboardScreen.kt`, `MainViewModel.kt` |
 | ۲-۱ تا ۲-۳ | `SniTunnelManager.kt` | `SingBoxManager.kt`, `DashboardScreen.kt` |
-| ۳-۱ تا ۳-۳ | `FrontingManager.kt`, `CertificateManager.kt`, `DohResolver.kt`, `ProxyServer.kt` | `DashboardScreen.kt`, `MainViewModel.kt`, `build.gradle` |
-| ۴-۱ تا ۴-۲ | `DesyncManager.kt` | – |
+| ۳-۱ تا ۳-۳ | `CertificateManager.kt`, `DohResolver.kt`, `ProxyServer.kt` | `DashboardScreen.kt`, `MainViewModel.kt`, `build.gradle` |
+| ۴-۱ تا ۴-۲ | `FragmentManager.kt`, `DesyncManager.kt` | `SettingsScreen.kt` |
 | ۵-۱ تا ۵-۳ | – | `VpnService.kt`, `SettingsScreen.kt` |
 | ۶-۱ تا ۶-۳ | `ConnectionHistory.kt` | `DashboardScreen.kt` |
 | ۷-۱ تا ۷-۴ | – | همه فایل‌های UI |
@@ -103,5 +103,5 @@
 
 ## 🟢 وضعیت فعلی
 - **تاریخ شروع:** ۱۴۰۵-۰۴-۱۵
-- **فاز فعال:** فاز ۴ (Desync و Fragment)
-- **وظیفه فعال:** ۴-۱ (ترجمه desync package)
+- **فاز فعال:** فاز ۵ (Kill Switch و Split Tunneling)
+- **وظیفه فعال:** ۵-۱ (پیاده‌سازی Kill Switch)

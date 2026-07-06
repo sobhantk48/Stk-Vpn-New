@@ -33,6 +33,57 @@ class MainViewModel @Inject constructor(
     private val database = AppDatabase.getInstance(context)
     private val TAG = "MainViewModel"
 
+    // ===== کانفیگ ثابت معتبر برای تست =====
+    private val TEST_CONFIG = """
+{
+  "log": {"level": "warn"},
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "interface_name": "v2ray-tun",
+      "address": ["172.19.0.1/30"],
+      "auto_route": true,
+      "strict_route": true,
+      "stack": "system",
+      "sniff": true
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "vless",
+      "server": "104.17.115.177",
+      "server_port": 443,
+      "uuid": "528b1e29-c2a8-474a-82d7-b3300591536e",
+      "tls": {
+        "enabled": true,
+        "server_name": "delicate-mud-ce14.sobhantk.workers.dev",
+        "insecure": false,
+        "fingerprint": "chrome"
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "delicate-mud-ce14.sobhantk.workers.dev"
+        }
+      }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "final": "direct"
+  }
+}
+    """.trimIndent()
+
+    // اگر true باشد، از کانفیگ ثابت استفاده می‌شود
+    private var useTestConfig = true
+
     private val _profiles = MutableStateFlow<List<Profile>>(emptyList())
     val profiles: StateFlow<List<Profile>> = _profiles.asStateFlow()
 
@@ -60,14 +111,12 @@ class MainViewModel @Inject constructor(
     private var activityRef: MainActivity? = null
 
     init {
-        // اضافه کردن کانفیگ ثابت
         loadDefaultProfiles()
         startPingTimer()
         loadRecentHistory()
     }
 
     private fun loadDefaultProfiles() {
-        // کانفیگ ثابت از لینک کاربر
         val defaultLink = "vless://528b1e29-c2a8-474a-82d7-b3300591536e@104.17.115.177:443?path=%2F&security=tls&encryption=none&host=delicate-mud-ce14.sobhantk.workers.dev&fp=chrome&type=ws&sni=delicate-mud-ce14.sobhantk.workers.dev#CF%E5%AE%98%E6%96%B9%E4%BC%98%E9%80%899"
 
         val defaultProfile = Profile.fromLink(defaultLink) ?: Profile(
@@ -84,8 +133,7 @@ class MainViewModel @Inject constructor(
             host = "delicate-mud-ce14.sobhantk.workers.dev"
         )
 
-        // پروفایل‌های نمونه دیگر (می‌توانید حذف کنید)
-        val sampleProfiles = listOf(
+        _profiles.value = listOf(
             defaultProfile,
             Profile(
                 id = "1",
@@ -108,7 +156,6 @@ class MainViewModel @Inject constructor(
                 network = "tcp"
             )
         )
-        _profiles.value = sampleProfiles
     }
 
     fun setActivity(activity: MainActivity) { activityRef = activity }
@@ -249,26 +296,32 @@ class MainViewModel @Inject constructor(
     }
 
     fun onVpnPermissionGranted() {
-        val selected = selectedProfile.value ?: return
-        val config = buildConfigFromProfile(selected)
+        // استفاده از کانفیگ ثابت برای تست
+        val config = if (useTestConfig) {
+            Log.d(TAG, "Using TEST_CONFIG")
+            TEST_CONFIG
+        } else {
+            val selected = selectedProfile.value ?: return
+            buildConfigFromProfile(selected)
+        }
+
         Log.d(TAG, "Generated config: $config")
+
         val intent = Intent(context, V2RayService::class.java).apply {
             action = V2RayService.ACTION_CONNECT
             putExtra(V2RayService.EXTRA_CONFIG, config)
-            putExtra(V2RayService.EXTRA_PROFILE_ID, selected.id)
+            putExtra(V2RayService.EXTRA_PROFILE_ID, selectedProfile.value?.id ?: "test")
         }
         context.startService(intent)
         _isConnected.value = true
         connectStartTime = System.currentTimeMillis()
-        currentProfileId = selected.id
+        currentProfileId = selectedProfile.value?.id
         viewModelScope.launch {
-            addHistory(selected, "CONNECT")
+            selectedProfile.value?.let { addHistory(it, "CONNECT") }
         }
     }
 
     private fun buildConfigFromProfile(profile: Profile): String {
-        // ---------- ۱. ساخت inbound TUN ----------
-        // برای رفع خطای "Listen on AnyIP but no Port(s) set" بهتر است port:0 اضافه کنیم
         val inbound = buildJsonObject {
             put("type", "tun")
             put("tag", "tun-in")
@@ -278,11 +331,8 @@ class MainViewModel @Inject constructor(
             put("strict_route", true)
             put("stack", "system")
             put("sniff", true)
-            // برخی نسخه‌ها نیاز به port دارند، ولی sing-box tun نیاز ندارد، اما برای اطمینان port=0 اضافه می‌کنیم
-            put("port", 0)
         }
 
-        // ---------- ۲. ساخت outbound از پروفایل ----------
         val outbound = buildJsonObject {
             put("type", profile.type.lowercase())
             put("server", profile.address)
@@ -298,7 +348,6 @@ class MainViewModel @Inject constructor(
                     put("fingerprint", profile.fingerprint)
                 })
             }
-            // تنظیمات transport (WebSocket)
             if (profile.network == "ws") {
                 put("transport", buildJsonObject {
                     put("type", "ws")
@@ -312,13 +361,11 @@ class MainViewModel @Inject constructor(
             }
         }
 
-        // ---------- ۳. ساخت outbound مستقیم ----------
         val direct = buildJsonObject {
             put("type", "direct")
             put("tag", "direct")
         }
 
-        // ---------- ۴. کل کانفیگ ----------
         val config = buildJsonObject {
             put("log", buildJsonObject { put("level", "warn") })
             put("inbounds", JsonArray(listOf(inbound)))
@@ -328,7 +375,6 @@ class MainViewModel @Inject constructor(
                 put("final", "direct")
             })
         }
-
         return config.toString()
     }
 

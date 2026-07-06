@@ -1,10 +1,12 @@
 package com.v2ray.app.navigation
 
+import android.content.Context
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
@@ -16,30 +18,45 @@ import com.v2ray.app.ui.admin.AdminLoginScreen
 import com.v2ray.app.ui.admin.AdminScreen
 import com.v2ray.app.ui.dashboard.DashboardScreen
 import com.v2ray.app.ui.location.LocationListScreen
+import com.v2ray.app.ui.onboarding.OnboardingScreen
 import com.v2ray.app.ui.settings.LogViewerScreen
 import com.v2ray.app.ui.settings.SettingsScreen
 import com.v2ray.app.ui.splash.SplashScreen
+import com.v2ray.app.utils.OnboardingManager
 import com.v2ray.app.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable
 fun AppNavigation() {
-
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    // استفاده از HiltViewModel برای جلوگیری از نشت و مشکلات DI
     val viewModel: MainViewModel = hiltViewModel()
-
     val adminLoggedIn by AdminSession.loggedIn.collectAsState()
+
+    // تعیین صفحه‌ی شروع (Onboarding یا Home)
+    val startDestination = if (OnboardingManager.isFirstLaunch(context)) {
+        AppRoutes.ONBOARDING
+    } else {
+        AppRoutes.SPLASH
+    }
 
     NavHost(
         navController = navController,
-        startDestination = AppRoutes.SPLASH
+        startDestination = startDestination
     ) {
+        composable(AppRoutes.ONBOARDING) {
+            OnboardingScreen(
+                onFinish = {
+                    OnboardingManager.setFirstLaunchDone(context)
+                    navController.navigate(AppRoutes.SPLASH) {
+                        popUpTo(AppRoutes.ONBOARDING) { inclusive = true }
+                    }
+                }
+            )
+        }
 
         composable(AppRoutes.SPLASH) {
             SplashScreen(

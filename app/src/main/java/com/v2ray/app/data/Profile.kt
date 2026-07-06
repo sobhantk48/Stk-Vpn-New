@@ -1,6 +1,7 @@
 package com.v2ray.app.data
 
 import android.util.Base64
+import android.net.Uri
 import java.io.Serializable
 import kotlinx.serialization.Serializable as KSerializable
 import kotlinx.serialization.json.*
@@ -9,7 +10,7 @@ import kotlinx.serialization.json.*
 data class Profile(
     val id: String = java.util.UUID.randomUUID().toString(),
     val name: String,
-    val type: String,            // VLESS, VMESS, TROJAN, SHADOWSOCKS
+    val type: String,
     val address: String,
     val port: Int,
     val uuid: String = "",
@@ -25,10 +26,9 @@ data class Profile(
     val ping: Int = 0,
     val country: String = "",
     val city: String = "",
-    // فیلدهای جدید برای transport
-    val network: String = "tcp",    // tcp, ws, grpc, etc.
+    val network: String = "tcp",
     val path: String = "",
-    val host: String = "",          // Host header for WebSocket
+    val host: String = "",
     val alpn: String = "",
     val allowInsecure: Boolean = false
 ) : Serializable {
@@ -48,28 +48,86 @@ data class Profile(
         return outbound.toString()
     }
 
-    private fun buildVlessJson() = buildJsonObject {
-        put("protocol", "vless")
-        put("settings", buildJsonObject {
-            put("vnext", JsonArray(listOf(
-                buildJsonObject {
-                    put("address", address)
-                    put("port", port)
-                    put("users", JsonArray(listOf(
-                        buildJsonObject {
-                            put("id", uuid.ifEmpty { "00000000-0000-0000-0000-000000000000" })
-                            put("flow", flow.ifEmpty { "none" })
-                            put("encryption", "none")
-                        }
-                    )))
-                }
-            )))
-        })
+    private fun buildVlessJson(): JsonObject {
+        return buildJsonObject {
+            put("protocol", "vless")
+            put("settings", buildJsonObject {
+                put("vnext", JsonArray(listOf(
+                    buildJsonObject {
+                        put("address", address)
+                        put("port", port)
+                        put("users", JsonArray(listOf(
+                            buildJsonObject {
+                                put("id", uuid.ifEmpty { "00000000-0000-0000-0000-000000000000" })
+                                put("flow", flow.ifEmpty { "none" })
+                                put("encryption", "none")
+                            }
+                        )))
+                    }
+                )))
+            })
+            put("streamSettings", buildStreamSettings())
+        }
+    }
 
-        put("streamSettings", buildJsonObject {
+    private fun buildVmessJson(): JsonObject {
+        return buildJsonObject {
+            put("protocol", "vmess")
+            put("settings", buildJsonObject {
+                put("vnext", JsonArray(listOf(
+                    buildJsonObject {
+                        put("address", address)
+                        put("port", port)
+                        put("users", JsonArray(listOf(
+                            buildJsonObject {
+                                put("id", uuid.ifEmpty { "00000000-0000-0000-0000-000000000000" })
+                                put("security", "auto")
+                            }
+                        )))
+                    }
+                )))
+            })
+            put("streamSettings", buildStreamSettings())
+        }
+    }
+
+    private fun buildTrojanJson(): JsonObject {
+        return buildJsonObject {
+            put("protocol", "trojan")
+            put("settings", buildJsonObject {
+                put("servers", JsonArray(listOf(
+                    buildJsonObject {
+                        put("address", address)
+                        put("port", port)
+                        put("password", uuid.ifEmpty { "password" })
+                        put("flow", flow)
+                    }
+                )))
+            })
+            put("streamSettings", buildStreamSettings())
+        }
+    }
+
+    private fun buildShadowsocksJson(): JsonObject {
+        return buildJsonObject {
+            put("protocol", "shadowsocks")
+            put("settings", buildJsonObject {
+                put("servers", JsonArray(listOf(
+                    buildJsonObject {
+                        put("address", address)
+                        put("port", port)
+                        put("method", encryption.ifEmpty { "chacha20-ietf-poly1305" })
+                        put("password", uuid.ifEmpty { "password" })
+                    }
+                )))
+            })
+        }
+    }
+
+    private fun buildStreamSettings(): JsonObject {
+        return buildJsonObject {
             put("network", network.ifEmpty { "tcp" })
 
-            // تنظیمات TLS
             if (sni.isNotBlank() || customSni.isNotBlank()) {
                 put("security", "tls")
                 put("tlsSettings", buildJsonObject {
@@ -79,22 +137,18 @@ data class Profile(
                 })
             }
 
-            // تنظیمات Transport (WebSocket)
             if (network == "ws") {
                 put("wsSettings", buildJsonObject {
                     put("path", path.ifEmpty { "/" })
-                    if (host.isNotBlank()) put("headers", buildJsonObject {
-                        put("Host", host)
-                    })
+                    if (host.isNotBlank()) {
+                        put("headers", buildJsonObject {
+                            put("Host", host)
+                        })
+                    }
                 })
             }
-        })
+        }
     }
-
-    // سایر توابع مشابه قبل...
-    private fun buildVmessJson() = buildJsonObject { /* ... */ }
-    private fun buildTrojanJson() = buildJsonObject { /* ... */ }
-    private fun buildShadowsocksJson() = buildJsonObject { /* ... */ }
 
     companion object {
         fun fromLink(link: String): Profile? {
@@ -110,8 +164,7 @@ data class Profile(
         }
 
         private fun parseVless(link: String): Profile {
-            // پارس کردن کامل vless با پشتیبانی از ws و sni و host و path
-            val uri = android.net.Uri.parse(link)
+            val uri = Uri.parse(link)
             val uuid = uri.userInfo ?: ""
             val host = uri.host ?: ""
             val port = uri.port ?: 443
@@ -119,7 +172,7 @@ data class Profile(
 
             val params = query.split("&").associate {
                 val parts = it.split("=")
-                if (parts.size == 2) parts[0] to android.net.Uri.decode(parts[1])
+                if (parts.size == 2) parts[0] to Uri.decode(parts[1])
                 else "" to ""
             }
 
@@ -147,9 +200,78 @@ data class Profile(
             )
         }
 
-        // سایر parseها مشابه قبل با اضافه کردن فیلدهای جدید
-        private fun parseVmess(link: String): Profile { /* ... */ }
-        private fun parseTrojan(link: String): Profile { /* ... */ }
-        private fun parseShadowsocks(link: String): Profile { /* ... */ }
+        private fun parseVmess(link: String): Profile {
+            val jsonString = String(Base64.decode(link.substringAfter("vmess://"), Base64.DEFAULT))
+            val obj = Json.parseToJsonElement(jsonString).jsonObject
+
+            val add = obj["add"]?.jsonPrimitive?.content ?: ""
+            val port = obj["port"]?.jsonPrimitive?.content?.toIntOrNull() ?: 443
+            val id = obj["id"]?.jsonPrimitive?.content ?: ""
+            val sni = obj["sni"]?.jsonPrimitive?.content ?: add
+            val net = obj["net"]?.jsonPrimitive?.content ?: "tcp"
+            val path = obj["path"]?.jsonPrimitive?.content ?: "/"
+            val host = obj["host"]?.jsonPrimitive?.content ?: ""
+            val tls = obj["tls"]?.jsonPrimitive?.content ?: ""
+
+            return Profile(
+                name = obj["ps"]?.jsonPrimitive?.content ?: "VMESS",
+                type = "VMESS",
+                address = add,
+                port = port,
+                uuid = id,
+                sni = sni,
+                network = net,
+                path = path,
+                host = host,
+                allowInsecure = tls.lowercase() != "tls"
+            )
+        }
+
+        private fun parseTrojan(link: String): Profile {
+            val uri = Uri.parse(link)
+            val password = uri.userInfo ?: ""
+            val host = uri.host ?: ""
+            val port = uri.port ?: 443
+            val query = uri.query ?: ""
+
+            val params = query.split("&").associate {
+                val parts = it.split("=")
+                if (parts.size == 2) parts[0] to Uri.decode(parts[1])
+                else "" to ""
+            }
+
+            val sni = params["sni"] ?: host
+            val fp = params["fp"] ?: "chrome"
+
+            return Profile(
+                name = "Trojan",
+                type = "TROJAN",
+                address = host,
+                port = port,
+                uuid = password,
+                sni = sni,
+                fingerprint = fp
+            )
+        }
+
+        private fun parseShadowsocks(link: String): Profile {
+            val parts = link.substringAfter("ss://").split("@")
+            val methodPassword = String(Base64.decode(parts[0], Base64.DEFAULT)).split(":")
+            val method = methodPassword[0]
+            val password = methodPassword[1]
+
+            val addressPort = parts[1].split(":")
+            val address = addressPort[0]
+            val port = addressPort.getOrNull(1)?.toIntOrNull() ?: 443
+
+            return Profile(
+                name = "Shadowsocks",
+                type = "SHADOWSOCKS",
+                address = address,
+                port = port,
+                uuid = password,
+                encryption = method
+            )
+        }
     }
 }

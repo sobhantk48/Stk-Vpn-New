@@ -21,7 +21,6 @@ import com.v2ray.app.navigation.AppNavigation
 import com.v2ray.app.ui.theme.V2rayAppTheme
 import com.v2ray.app.viewmodel.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.*
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -42,17 +41,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // ارسال مرجع Activity به ViewModel
         viewModel.setActivity(this)
-
-        // ایجاد یک state برای ذخیره خطا
-        var errorMessage by mutableStateOf<String?>(null)
 
         setContent {
             V2rayAppTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    // نمایش خطا با یک state ساده
+                    var errorMessage by remember { mutableStateOf<String?>(null) }
+
                     if (errorMessage != null) {
-                        // نمایش خطا در صورت وجود
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -72,26 +69,18 @@ class MainActivity : ComponentActivity() {
                                 fontSize = 14.sp
                             )
                             Spacer(modifier = Modifier.height(16.dp))
-                            Button(
-                                onClick = { errorMessage = null }
-                            ) {
+                            Button(onClick = { errorMessage = null }) {
                                 Text("تلاش مجدد")
                             }
                         }
                     } else {
-                        try {
-                            AppNavigation()
-                        } catch (e: Exception) {
-                            // اگر خطا در AppNavigation رخ داد، آن را ذخیره کن
-                            errorMessage = "AppNavigation: ${e.message}\n${e.stackTraceToString().take(300)}"
-                            Log.e(TAG, "Error in AppNavigation", e)
-                        }
+                        // استفاده از AppNavigation بدون try-catch
+                        AppNavigation()
                     }
                 }
             }
         }
 
-        // درخواست مجوز نوتیفیکیشن برای Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 200)
         }

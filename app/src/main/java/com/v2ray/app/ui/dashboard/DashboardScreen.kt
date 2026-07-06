@@ -17,7 +17,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.v2ray.app.data.Profile
 import com.v2ray.app.ui.theme.*
 import com.v2ray.app.viewmodel.MainViewModel
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,7 +77,7 @@ fun DashboardScreen(
 
                 if (isConnected && selected != null) {
                     Text(
-                        text = "${selected!!.name} - ${selected!!.protocol} - ${selected!!.network}",
+                        text = "${selected!!.name} - ${selected!!.type} - tcp",
                         color = WhiteText,
                         fontSize = 14.sp
                     )
@@ -118,7 +117,7 @@ fun DashboardScreen(
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             QuickActionButton(
-                icon = Icons.Default.Servers,
+                icon = Icons.Default.List,
                 label = "Servers",
                 onClick = { /* TODO: Open server list */ }
             )
@@ -153,7 +152,7 @@ fun DashboardScreen(
         )
 
         LazyColumn {
-            items(profiles) { profile ->
+            items(profiles, key = { it.id }) { profile ->
                 ServerItem(
                     profile = profile,
                     isSelected = selected?.id == profile.id,
@@ -251,7 +250,7 @@ fun ServerItem(
                     fontSize = 14.sp
                 )
                 Text(
-                    text = "${profile.server}:${profile.port}",
+                    text = "${profile.address}:${profile.port}",
                     color = WhiteText.copy(0.5f),
                     fontSize = 11.sp
                 )

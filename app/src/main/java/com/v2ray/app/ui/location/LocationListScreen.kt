@@ -27,6 +27,7 @@ import com.v2ray.app.viewmodel.MainViewModel
 fun LocationListScreen(vm: MainViewModel, onBack: () -> Unit) {
 
     val profiles by vm.profiles.collectAsState()
+    val selectedId by vm.selectedId.collectAsState()
 
     Scaffold(
         topBar = {
@@ -56,7 +57,7 @@ fun LocationListScreen(vm: MainViewModel, onBack: () -> Unit) {
             items(profiles, key = { it.id }) { p ->
                 LocationCard(
                     profile = p,
-                    selected = p.selected,
+                    selected = p.id == selectedId,
                     onClick = { vm.select(p.id) }
                 )
             }

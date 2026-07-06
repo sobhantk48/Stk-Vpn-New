@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.Color
 val PrimaryBlue = Color(0xFF2196F3)
 val CyanAccent = Color(0xFF00BCD4)
 val GreenAccent = Color(0xFF4CAF50)
+val GreenSuccess = Color(0xFF4CAF50) // alias for GreenAccent
 val RedError = Color(0xFFF44336)
 
 // Text colors

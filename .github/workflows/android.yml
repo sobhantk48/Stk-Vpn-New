@@ -1,4 +1,4 @@
-name: Android CI (Release APK)
+name: Android CI (Debug APK)
 
 on:
   push:
@@ -30,24 +30,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Create Keystore from Secret
+      - name: Build Debug APK
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/keystore.jks
-          ls -la app/keystore.jks
+          echo "🚀 Building Debug APK..."
+          ./gradlew assembleDebug --stacktrace --warning-mode=none
 
-      - name: Build Release APK
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          echo "🚀 Building Release APK..."
-          ./gradlew assembleRelease --stacktrace --warning-mode=none
-
-      - name: Upload Release APK
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: app/build/outputs/apk/release/*.apk
+          name: app-debug
+          path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: ignore
           retention-days: 30

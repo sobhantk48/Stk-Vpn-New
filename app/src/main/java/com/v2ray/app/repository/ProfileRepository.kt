@@ -1,4 +1,6 @@
 package com.v2ray.app.repository
+import com.v2ray.app.writeError
+import com.v2ray.app.writeLog
 
 import android.content.Context
 import android.content.SharedPreferences

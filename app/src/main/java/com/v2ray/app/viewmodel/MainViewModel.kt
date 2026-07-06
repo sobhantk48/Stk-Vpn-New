@@ -254,7 +254,7 @@ class MainViewModel @Inject constructor(
     fun onVpnPermissionGranted() {
         val selected = selectedProfile.value ?: return
         val config = buildConfigFromProfile(selected)
-        Log.d(TAG, "Config: $config")
+        Log.d(TAG, "Generated config: $config")
         val intent = Intent(context, V2RayService::class.java).apply {
             action = V2RayService.ACTION_CONNECT
             putExtra(V2RayService.EXTRA_CONFIG, config)
@@ -270,7 +270,19 @@ class MainViewModel @Inject constructor(
     }
 
     private fun buildConfigFromProfile(profile: Profile): String {
-        // ساخت outbound
+        // ---------- ۱. ساخت inbound TUN ----------
+        val inbound = buildJsonObject {
+            put("type", "tun")
+            put("tag", "tun-in")
+            put("interface_name", "v2ray-tun")
+            put("address", JsonArray(listOf(JsonPrimitive("172.19.0.1/30"))))
+            put("auto_route", true)
+            put("strict_route", true)
+            put("stack", "system")
+            put("sniff", true)
+        }
+
+        // ---------- ۲. ساخت outbound از پروفایل ----------
         val outbound = buildJsonObject {
             put("type", profile.type.lowercase())
             put("server", profile.address)
@@ -288,34 +300,23 @@ class MainViewModel @Inject constructor(
             }
         }
 
-        // ساخت inbound TUN به صورت آرایه
-        val inbound = buildJsonObject {
-            put("type", "tun")
-            put("tag", "tun-in")
-            put("interface_name", "v2ray-tun")
-            put("address", JsonArray(listOf(JsonPrimitive("172.19.0.1/30"))))
-            put("auto_route", true)
-            put("strict_route", true)
-            put("stack", "system")
-            put("sniff", true)
-        }
-
-        val directOutbound = buildJsonObject {
+        // ---------- ۳. ساخت outbound مستقیم ----------
+        val direct = buildJsonObject {
             put("type", "direct")
             put("tag", "direct")
         }
 
+        // ---------- ۴. کل کانفیگ ----------
         val config = buildJsonObject {
-            put("log", buildJsonObject {
-                put("level", "warn")
-            })
+            put("log", buildJsonObject { put("level", "warn") })
             put("inbounds", JsonArray(listOf(inbound)))
-            put("outbounds", JsonArray(listOf(outbound, directOutbound)))
+            put("outbounds", JsonArray(listOf(outbound, direct)))
             put("route", buildJsonObject {
                 put("auto_detect_interface", true)
                 put("final", "direct")
             })
         }
+
         return config.toString()
     }
 

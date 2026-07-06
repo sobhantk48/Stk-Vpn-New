@@ -36,13 +36,10 @@ fun SettingsScreen(
     val packageManager = context.packageManager
     val scope = rememberCoroutineScope()
 
-    // Theme
     var isDarkTheme by remember { mutableStateOf(true) }
 
-    // Kill Switch
     var killSwitchEnabled by remember { mutableStateOf(V2RayService.killSwitchEnabled) }
 
-    // Split Tunneling
     var splitEnabled by remember { mutableStateOf(V2RayService.splitTunnelingEnabled) }
     var splitMode by remember { mutableStateOf(V2RayService.SplitMode.INCLUDE) }
     val splitApps = remember { mutableStateListOf<String>().apply { addAll(V2RayService.splitApps) } }
@@ -53,12 +50,10 @@ fun SettingsScreen(
             .sorted()
     }
 
-    // Desync
-    var fragmentEnabled by remember { mutableStateOf(DesyncManager.getInstance().isEnabled()) }
-    var sniChunk by remember { mutableStateOf(DesyncManager.getInstance().getConfig().sniChunk) }
-    var fragmentDelay by remember { mutableStateOf(DesyncManager.getInstance().getConfig().fragmentDelay) }
+    var fragmentEnabled by remember { mutableStateOf(DesyncManager.isEnabled()) }
+    var sniChunk by remember { mutableStateOf(DesyncManager.getConfig().sniChunk) }
+    var fragmentDelay by remember { mutableStateOf(DesyncManager.getConfig().fragmentDelay) }
 
-    // Backup
     val backupStatus by vm.backupStatus.collectAsStateWithLifecycle()
     val backupFiles = remember { vm.getBackupFiles() }
 
@@ -100,7 +95,7 @@ fun SettingsScreen(
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // ===== Theme =====
+            // Theme
             Text(
                 text = "🎨 Theme",
                 color = CyanAccent,
@@ -133,7 +128,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ===== Kill Switch =====
+            // Kill Switch
             Text(
                 text = "🔒 Kill Switch",
                 color = CyanAccent,
@@ -174,7 +169,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ===== Split Tunneling =====
+            // Split Tunneling
             Text(
                 text = "📱 Split Tunneling",
                 color = CyanAccent,
@@ -289,7 +284,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ===== Backup & Restore =====
+            // Backup & Restore
             Text(
                 text = "💾 Backup & Restore",
                 color = CyanAccent,
@@ -383,7 +378,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ===== Desync / Fragment =====
+            // Desync / Fragment
             Text(
                 text = "🔀 DPI Evasion (Desync)",
                 color = CyanAccent,
@@ -410,7 +405,7 @@ fun SettingsScreen(
                             onCheckedChange = {
                                 fragmentEnabled = it
                                 if (it) {
-                                    DesyncManager.getInstance().enable(
+                                    DesyncManager.enable(
                                         DesyncManager.Config(
                                             enableFragment = true,
                                             sniChunk = sniChunk,
@@ -418,7 +413,7 @@ fun SettingsScreen(
                                         )
                                     )
                                 } else {
-                                    DesyncManager.getInstance().disable()
+                                    DesyncManager.disable()
                                 }
                             }
                         )

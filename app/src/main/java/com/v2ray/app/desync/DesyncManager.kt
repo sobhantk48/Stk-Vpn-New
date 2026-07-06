@@ -4,20 +4,13 @@ import android.util.Log
 import java.net.Socket
 import kotlinx.coroutines.*
 
-/**
- * مدیریت کلی Desync و Fragment
- * معادل desync.Config و desync.WrapConn در Go
- */
-class DesyncManager {
-    companion object {
-        private const val TAG = "DesyncManager"
-    }
+object DesyncManager {
+    private const val TAG = "DesyncManager"
 
     data class Config(
         val enableFragment: Boolean = false,
         val sniChunk: Int = 3,
         val fragmentDelay: Long = 500,
-        // Fake Injection غیرفعال (نیاز به root و raw socket)
         val enableFakeInjection: Boolean = false
     )
 
@@ -39,10 +32,6 @@ class DesyncManager {
 
     fun getConfig(): Config = currentConfig
 
-    /**
-     * تابع کمکی برای ارسال داده با Fragment
-     * می‌توان از این در Socket استفاده کرد
-     */
     suspend fun writeWithFragment(socket: Socket, data: ByteArray): Int {
         if (!isEnabled || !currentConfig.enableFragment) {
             socket.getOutputStream().write(data)
@@ -60,13 +49,7 @@ class DesyncManager {
         )
     }
 
-    /**
-     * بررسی اینکه آیا داده ClientHello است یا خیر
-     */
     fun isClientHello(data: ByteArray): Boolean = FragmentManager.findSNI(data) != null
 
-    /**
-     * گرفتن SNI از ClientHello
-     */
     fun extractSNI(data: ByteArray): String? = FragmentManager.findSNI(data)?.third
 }

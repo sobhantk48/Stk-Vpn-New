@@ -11,20 +11,15 @@ object AdminSession {
 
     fun validatePassword(input: String): Boolean {
         val result = input == currentPassword
-        Logger.Logger.log("Admin login: ${if (result) "success" else "failed"}")
         return result
     }
 
-    fun login() { _loggedIn.value = true; Logger.Logger.log("Admin logged in") }
-    fun logout() { _loggedIn.value = false; Logger.Logger.log("Admin logged out") }
 
     fun changePassword(old: String, new: String): Boolean {
         return if (old == currentPassword && new.length >= 4) {
             currentPassword = new
-            Logger.Logger.log("Password changed")
             true
         } else {
-            Logger.Logger.log("Password change failed")
             false
         }
     }

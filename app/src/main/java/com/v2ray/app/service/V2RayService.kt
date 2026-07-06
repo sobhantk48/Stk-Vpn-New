@@ -11,6 +11,7 @@ import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
 import com.v2ray.app.MainActivity
 import com.v2ray.app.R
+import com.v2ray.app.model.SplitMode
 import com.v2ray.app.v2ray.SingBoxManager
 import kotlinx.coroutines.*
 
@@ -25,11 +26,6 @@ class V2RayService : VpnService() {
 
         var killSwitchEnabled = false
         var splitTunnelingEnabled = false
-
-        // تعریف SplitMode در Companion object
-        enum class SplitMode {
-            INCLUDE, EXCLUDE
-        }
         var splitMode = SplitMode.INCLUDE
         val splitApps = mutableSetOf<String>()
     }

@@ -20,8 +20,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.v2ray.app.desync.DesyncManager
+import com.v2ray.app.model.SplitMode
 import com.v2ray.app.service.V2RayService
-import com.v2ray.app.service.V2RayService.SplitMode
 import com.v2ray.app.ui.theme.*
 import com.v2ray.app.viewmodel.MainViewModel
 import java.io.File

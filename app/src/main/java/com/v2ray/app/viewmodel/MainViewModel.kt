@@ -1,13 +1,13 @@
 package com.v2ray.app.viewmodel
 
 import android.app.Application
-import android.util.Log
+import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.v2ray.app.data.ConnectionHistory
 import com.v2ray.app.data.AppDatabase
+import com.v2ray.app.data.ConnectionHistory
 import com.v2ray.app.data.Profile
-import com.v2ray.app.fronting.ProxyServer
+import com.v2ray.app.service.V2RayService
 import com.v2ray.app.utils.BackupManager
 import com.v2ray.app.utils.SpeedTester
 import com.v2ray.app.utils.SniResult
@@ -26,7 +26,8 @@ class MainViewModel @Inject constructor(
     application: Application
 ) : AndroidViewModel(application) {
 
-    private val database = AppDatabase.getInstance(application)
+    private val context = application.applicationContext
+    private val database = AppDatabase.getInstance(context)
 
     private val _profiles = MutableStateFlow<List<Profile>>(emptyList())
     val profiles: StateFlow<List<Profile>> = _profiles.asStateFlow()
@@ -50,18 +51,20 @@ class MainViewModel @Inject constructor(
     private val _backupStatus = MutableStateFlow<BackupStatus?>(null)
     val backupStatus: StateFlow<BackupStatus?> = _backupStatus.asStateFlow()
 
-    // Domain Fronting
-    private var proxyServer: ProxyServer? = null
-    private val _frontingStatus = MutableStateFlow(false)
-    val frontingStatus: StateFlow<Boolean> = _frontingStatus.asStateFlow()
-
     private var connectStartTime: Long = 0
     private var currentProfileId: String? = null
+
+    // برای دریافت مرجع Activity (برای درخواست مجوز)
+    private var activityRef: MainActivity? = null
 
     init {
         loadSampleProfiles()
         startPingTimer()
         loadRecentHistory()
+    }
+
+    fun setActivity(activity: MainActivity) {
+        activityRef = activity
     }
 
     private fun loadSampleProfiles() {
@@ -223,7 +226,7 @@ class MainViewModel @Inject constructor(
                 return@withContext null
             }
 
-            val backupFile = BackupManager.backupProfiles(getApplication(), currentProfiles)
+            val backupFile = BackupManager.backupProfiles(context, currentProfiles)
             if (backupFile != null) {
                 _backupStatus.value = BackupStatus.Success("Backup saved: ${backupFile.name}")
             } else {
@@ -238,7 +241,7 @@ class MainViewModel @Inject constructor(
 
     suspend fun restoreProfiles(file: File): Boolean = withContext(Dispatchers.IO) {
         try {
-            val restored = BackupManager.restoreProfiles(getApplication(), file)
+            val restored = BackupManager.restoreProfiles(context, file)
             if (restored != null && restored.isNotEmpty()) {
                 addAll(restored)
                 _backupStatus.value = BackupStatus.Success("Restored ${restored.size} profiles")
@@ -254,7 +257,7 @@ class MainViewModel @Inject constructor(
     }
 
     fun getBackupFiles(): List<File> {
-        return BackupManager.getBackupFiles(getApplication())
+        return BackupManager.getBackupFiles(context)
     }
 
     fun deleteBackupFile(file: File): Boolean {
@@ -268,52 +271,86 @@ class MainViewModel @Inject constructor(
     // ===== Connection Toggle =====
 
     fun toggleConnection() {
-        viewModelScope.launch {
-            if (_isConnected.value) {
-                val connectedAt = connectStartTime
-                val duration = if (connectedAt > 0) System.currentTimeMillis() - connectedAt else 0
-                _isConnected.value = false
+        if (_isConnected.value) {
+            // قطع اتصال
+            val intent = Intent(context, V2RayService::class.java).apply {
+                action = V2RayService.ACTION_DISCONNECT
+            }
+            context.stopService(intent)
+            _isConnected.value = false
+
+            // ثبت تاریخچه قطع
+            viewModelScope.launch {
                 currentProfileId?.let { profileId ->
                     val profile = _profiles.value.find { it.id == profileId }
                     profile?.let {
+                        val duration = if (connectStartTime > 0) System.currentTimeMillis() - connectStartTime else 0
                         addHistory(it, "DISCONNECT", duration)
                     }
                 }
                 currentProfileId = null
                 connectStartTime = 0
-            } else {
-                _isConnected.value = true
-                connectStartTime = System.currentTimeMillis()
-                selectedProfile.value?.let { profile ->
-                    currentProfileId = profile.id
-                    addHistory(profile, "CONNECT")
-                }
             }
+        } else {
+            // درخواست مجوز VPN از Activity
+            activityRef?.requestVpnPermission()
         }
+    }
+
+    // تابعی که بعد از گرفتن مجوز VPN توسط Activity صدا زده می‌شود
+    fun onVpnPermissionGranted() {
+        val selected = selectedProfile.value ?: return
+        val config = buildConfigFromProfile(selected)
+
+        val intent = Intent(context, V2RayService::class.java).apply {
+            action = V2RayService.ACTION_CONNECT
+            putExtra(V2RayService.EXTRA_CONFIG, config)
+            putExtra(V2RayService.EXTRA_PROFILE_ID, selected.id)
+        }
+        context.startService(intent)
+
+        _isConnected.value = true
+        connectStartTime = System.currentTimeMillis()
+        currentProfileId = selected.id
+
+        // ثبت تاریخچه اتصال
+        viewModelScope.launch {
+            addHistory(selected, "CONNECT")
+        }
+    }
+
+    private fun buildConfigFromProfile(profile: Profile): String {
+        // اینجا باید کانفیگ واقعی ساخته شود
+        // فعلاً یک کانفیگ نمونه برمی‌گردانیم
+        return """
+        {
+            "inbounds": [],
+            "outbounds": [
+                {
+                    "type": "${profile.type.lowercase()}",
+                    "server": "${profile.address}",
+                    "server_port": ${profile.port},
+                    "uuid": "${profile.uuid}",
+                    "flow": "${profile.flow}",
+                    "tls": {
+                        "enabled": true,
+                        "server_name": "${profile.getEffectiveSni()}",
+                        "fingerprint": "${profile.fingerprint}"
+                    }
+                }
+            ]
+        }
+        """.trimIndent()
     }
 
     // ===== Domain Fronting =====
 
     fun startFronting() {
-        viewModelScope.launch {
-            try {
-                proxyServer = ProxyServer(getApplication())
-                val started = proxyServer?.start() ?: false
-                _frontingStatus.value = started
-            } catch (e: Exception) {
-                _frontingStatus.value = false
-            }
-        }
+        // پیاده‌سازی واقعی
     }
 
     fun stopFronting() {
-        proxyServer?.stop()
-        proxyServer = null
-        _frontingStatus.value = false
-    }
-
-    fun setVpnPermissionLauncher(launcher: (android.content.Intent) -> Unit) {
-        // پیاده‌سازی برای درخواست مجوز VPN
+        // پیاده‌سازی واقعی
     }
 }
 

@@ -1,6 +1,9 @@
 package com.v2ray.app
 
 import android.app.Activity
+import android.content.Intent
+import android.net.VpnService
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -18,33 +21,44 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    private val vpnPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == Activity.RESULT_OK) {
-                // Permission granted
-            } else {
-                // Permission denied
-            }
+
+    private val viewModel: MainViewModel by hiltViewModel()
+
+    private val vpnPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            viewModel.onVpnPermissionGranted()
+        } else {
+            // مجوز رد شد
         }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // ارسال مرجع Activity به ViewModel
+        viewModel.setActivity(this)
+
         setContent {
             V2rayAppTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    val viewModel: MainViewModel = hiltViewModel()
-                    LaunchedEffect(Unit) {
-                        viewModel.setVpnPermissionLauncher { intent ->
-                            vpnPermissionLauncher.launch(intent)
-                        }
-                    }
-                    // فراخوانی بدون پارامتر (چون AppNavigation پارامتر نمی‌گیرد)
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     AppNavigation()
                 }
             }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 200)
+        }
+    }
+
+    fun requestVpnPermission() {
+        val intent = VpnService.prepare(this)
+        if (intent != null) {
+            vpnPermissionLauncher.launch(intent)
+        } else {
+            viewModel.onVpnPermissionGranted()
         }
     }
 }

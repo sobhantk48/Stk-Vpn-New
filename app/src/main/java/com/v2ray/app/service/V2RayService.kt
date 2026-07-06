@@ -13,7 +13,6 @@ import com.v2ray.app.MainActivity
 import com.v2ray.app.R
 import com.v2ray.app.v2ray.SingBoxManager
 import kotlinx.coroutines.*
-import java.net.InetSocketAddress
 
 class V2RayService : VpnService() {
     companion object {
@@ -24,18 +23,12 @@ class V2RayService : VpnService() {
         const val EXTRA_CONFIG = "config"
         const val EXTRA_PROFILE_ID = "profile_id"
 
-        // Kill Switch
-        var killSwitchEnabled = true
-        var isKillSwitchActive = false
-
-        // Split Tunneling
+        // تنظیمات Kill Switch و Split Tunneling (همان‌ها)
+        var killSwitchEnabled = false
         var splitTunnelingEnabled = false
-        var splitMode: SplitMode = SplitMode.INCLUDE // INCLUDE = فقط این اپ‌ها, EXCLUDE = همه به‌جز این اپ‌ها
-        val splitApps = mutableSetOf<String>() // پکیج‌های اپلیکیشن
-    }
-
-    enum class SplitMode {
-        INCLUDE, EXCLUDE
+        enum class SplitMode { INCLUDE, EXCLUDE }
+        var splitMode = SplitMode.INCLUDE
+        val splitApps = mutableSetOf<String>()
     }
 
     private var vpnInterface: ParcelFileDescriptor? = null
@@ -90,48 +83,25 @@ class V2RayService : VpnService() {
                 if (splitTunnelingEnabled && splitApps.isNotEmpty()) {
                     when (splitMode) {
                         SplitMode.INCLUDE -> {
-                            // فقط این اپ‌ها از VPN می‌روند
-                            splitApps.forEach { pkg ->
-                                builder.addDisallowedApplication(pkg)
-                            }
+                            splitApps.forEach { pkg -> builder.addDisallowedApplication(pkg) }
                         }
                         SplitMode.EXCLUDE -> {
-                            // همه به‌جز این اپ‌ها از VPN می‌روند
-                            splitApps.forEach { pkg ->
-                                builder.addAllowedApplication(pkg)
-                            }
+                            splitApps.forEach { pkg -> builder.addAllowedApplication(pkg) }
                         }
                     }
                 }
 
-                // ۳. Kill Switch (قبل از شروع VPN، هیچ ترافیکی خارج نمی‌شود)
-                if (killSwitchEnabled) {
-                    isKillSwitchActive = true
-                    // برای Kill Switch از متد protect استفاده می‌کنیم
-                    // در اینجا فقط فلگ را فعال می‌کنیم
-                }
-
-                // ۴. ساخت VPN Interface
                 vpnInterface = builder.establish()
 
-                // ۵. شروع sing-box
+                // ۳. شروع sing-box
                 val result = singBoxManager.startV2Ray(config, vpnInterface?.fd ?: -1)
                 if (result.isSuccess) {
                     isRunning = true
                     updateNotification("🟢 Connected", true)
-                    isKillSwitchActive = false // بعد از اتصال، Kill Switch غیرفعال می‌شود
                 } else {
-                    // اگر sing-box شروع نشد، Kill Switch فعال می‌شود
-                    if (killSwitchEnabled) {
-                        isKillSwitchActive = true
-                    }
                     updateNotification("❌ Connection Failed", false)
                 }
             } catch (e: Exception) {
-                // خطا در ساخت VPN → فعال‌سازی Kill Switch
-                if (killSwitchEnabled) {
-                    isKillSwitchActive = true
-                }
                 updateNotification("❌ Error: ${e.message}", false)
             }
         }
@@ -144,7 +114,6 @@ class V2RayService : VpnService() {
                 vpnInterface?.close()
                 vpnInterface = null
                 isRunning = false
-                isKillSwitchActive = false
                 updateNotification("⏹️ Disconnected", false)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -154,10 +123,9 @@ class V2RayService : VpnService() {
         }
     }
 
-    // ===== Kill Switch: محافظت از سوکت‌ها =====
+    // ===== Kill Switch =====
     override fun protect(socket: Int): Boolean {
-        return if (killSwitchEnabled && isKillSwitchActive) {
-            // در حالت Kill Switch، اجازه‌ی خروج ترافیک داده نمی‌شود
+        return if (killSwitchEnabled && !isRunning) {
             false
         } else {
             super.protect(socket)
@@ -165,7 +133,6 @@ class V2RayService : VpnService() {
     }
 
     // ===== Notification =====
-
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(

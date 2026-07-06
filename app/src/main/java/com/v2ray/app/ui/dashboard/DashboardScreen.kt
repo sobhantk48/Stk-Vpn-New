@@ -14,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.v2ray.app.data.ConnectionHistory
 import com.v2ray.app.data.Profile
 import com.v2ray.app.ui.theme.*
 import com.v2ray.app.viewmodel.MainViewModel
@@ -35,7 +34,6 @@ fun DashboardScreen(
     val selected by vm.selectedProfile.collectAsStateWithLifecycle()
     val isConnected by vm.isConnected.collectAsStateWithLifecycle()
     val pings by vm.pings.collectAsStateWithLifecycle()
-    val recentHistory by vm.recentHistory.collectAsStateWithLifecycle()
 
     var sniTunnelEnabled by remember { mutableStateOf(false) }
     var frontingEnabled by remember { mutableStateOf(false) }
@@ -179,21 +177,36 @@ fun DashboardScreen(
             )
         }
 
-        // دکمه‌ی اتصال/قطع
-        Button(
-            onClick = { vm.toggleConnection() },
+        // دکمه اتصال/قطع و Admin
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (isConnected) RedError else GreenSuccess
-            )
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = if (isConnected) "🔴 Disconnect" else "🟢 Connect",
-                color = WhiteText,
-                fontSize = 16.sp
-            )
+            Button(
+                onClick = { vm.toggleConnection() },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isConnected) RedError else GreenSuccess
+                )
+            ) {
+                Text(
+                    text = if (isConnected) "🔴 Disconnect" else "🟢 Connect",
+                    color = WhiteText,
+                    fontSize = 16.sp
+                )
+            }
+
+            Button(
+                onClick = onAdminClick,
+                modifier = Modifier.weight(0.5f),
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+            ) {
+                Icon(Icons.Default.AdminPanelSettings, contentDescription = null)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Admin", color = WhiteText, fontSize = 14.sp)
+            }
         }
 
         // Recent Activity
@@ -203,25 +216,6 @@ fun DashboardScreen(
             fontSize = 16.sp,
             modifier = Modifier.padding(bottom = 8.dp)
         )
-
-        if (recentHistory.isEmpty()) {
-            Text(
-                text = "No activity yet",
-                color = WhiteText.copy(0.5f),
-                fontSize = 12.sp,
-                modifier = Modifier.padding(8.dp)
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 150.dp)
-            ) {
-                items(recentHistory.take(5)) { history ->
-                    HistoryItem(history = history)
-                }
-            }
-        }
 
         // دکمه‌های پایین
         Row(
@@ -277,109 +271,6 @@ fun QuickActionButton(
             color = WhiteText.copy(0.7f),
             fontSize = 10.sp
         )
-    }
-}
-
-@Composable
-fun ServerItem(
-    profile: Profile,
-    isSelected: Boolean,
-    ping: Int,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) CyanAccent.copy(0.2f) else DarkSurface
-        ),
-        shape = MaterialTheme.shapes.small
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = profile.name,
-                    color = WhiteText,
-                    fontSize = 14.sp
-                )
-                Text(
-                    text = "${profile.address}:${profile.port}",
-                    color = WhiteText.copy(0.5f),
-                    fontSize = 11.sp
-                )
-                if (profile.customSni.isNotBlank()) {
-                    Text(
-                        text = "SNI: ${profile.customSni}",
-                        color = CyanAccent.copy(0.7f),
-                        fontSize = 10.sp
-                    )
-                }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (isSelected) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = "Selected",
-                        tint = GreenSuccess,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-                Text(
-                    text = if (ping > 0) "${ping} ms" else "--",
-                    color = if (ping > 0 && ping < 100) GreenSuccess else if (ping > 0 && ping < 200) CyanAccent else WhiteText.copy(0.5f),
-                    fontSize = 12.sp
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun HistoryItem(history: ConnectionHistory) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = DarkSurface.copy(0.7f)
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "${history.profileName} - ${history.action}",
-                    color = if (history.action == "CONNECT") GreenSuccess else RedError,
-                    fontSize = 12.sp
-                )
-                Text(
-                    text = history.getFormattedTime(),
-                    color = WhiteText.copy(0.5f),
-                    fontSize = 10.sp
-                )
-            }
-            if (history.action == "CONNECT") {
-                Text(
-                    text = history.getDurationString(),
-                    color = WhiteText.copy(0.7f),
-                    fontSize = 11.sp
-                )
-            }
-        }
     }
 }
 

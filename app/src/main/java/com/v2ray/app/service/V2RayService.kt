@@ -8,6 +8,7 @@ import android.content.Intent
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.v2ray.app.MainActivity
 import com.v2ray.app.R
@@ -17,6 +18,7 @@ import kotlinx.coroutines.*
 
 class V2RayService : VpnService() {
     companion object {
+        private const val TAG = "V2RayService"
         const val ACTION_CONNECT = "com.v2ray.app.CONNECT"
         const val ACTION_DISCONNECT = "com.v2ray.app.DISCONNECT"
         const val NOTIFICATION_ID = 1001
@@ -62,6 +64,7 @@ class V2RayService : VpnService() {
 
         serviceScope.launch {
             try {
+                // ۱. ساخت VPN Interface
                 val builder = Builder()
                     .setSession("V2Ray VPN")
                     .setMtu(1500)
@@ -77,6 +80,7 @@ class V2RayService : VpnService() {
                         )
                     )
 
+                // Split Tunneling
                 if (splitTunnelingEnabled && splitApps.isNotEmpty()) {
                     when (splitMode) {
                         SplitMode.INCLUDE -> {
@@ -89,16 +93,30 @@ class V2RayService : VpnService() {
                 }
 
                 vpnInterface = builder.establish()
+                Log.d(TAG, "VPN interface established with fd: ${vpnInterface?.fd}")
 
-                val result = singBoxManager.startV2Ray(config, vpnInterface?.fd ?: -1)
+                // ۲. شروع sing-box
+                val fd = vpnInterface?.fd ?: -1
+                if (fd == -1) {
+                    throw Exception("VPN interface fd is invalid")
+                }
+
+                val result = singBoxManager.startV2Ray(config, fd)
                 if (result.isSuccess) {
                     isRunning = true
                     updateNotification("🟢 Connected", true)
+                    Log.d(TAG, "V2Ray started successfully")
                 } else {
-                    updateNotification("❌ Connection Failed", false)
+                    val error = result.exceptionOrNull()?.message ?: "Unknown error"
+                    updateNotification("❌ Connection Failed: $error", false)
+                    Log.e(TAG, "V2Ray start failed: $error")
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "startVpn error", e)
                 updateNotification("❌ Error: ${e.message}", false)
+                // بستن VPN Interface در صورت خطا
+                vpnInterface?.close()
+                vpnInterface = null
             }
         }
     }
@@ -114,7 +132,7 @@ class V2RayService : VpnService() {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "stopVpn error", e)
             }
         }
     }

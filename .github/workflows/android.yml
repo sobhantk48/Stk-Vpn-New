@@ -1,4 +1,4 @@
-name: Android CI (with APK upload)
+name: Android CI (Release APK)
 
 on:
   push:
@@ -30,29 +30,22 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Build Release APK
+      - name: Create Keystore
         run: |
-          echo "🚀 Building Release APK..."
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/keystore.jks
+
+      - name: Build Release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
           ./gradlew assembleRelease --stacktrace --warning-mode=none
 
-      - name: List APK directory
-        run: |
-          echo "::group::📁 APK directory content"
-          ls -la app/build/outputs/apk/release/ || echo "Directory not found"
-          echo "::endgroup::"
-
-      - name: Upload APK (always)
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: app/build/outputs/apk/release/*.apk
-          if-no-files-found: ignore
-          retention-days: 30
-
-      - name: Upload Debug APK (fallback)
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: ignore
           retention-days: 30

@@ -60,7 +60,33 @@ class MainViewModel @Inject constructor(
     private var activityRef: MainActivity? = null
 
     init {
-        _profiles.value = listOf(
+        // اضافه کردن کانفیگ ثابت
+        loadDefaultProfiles()
+        startPingTimer()
+        loadRecentHistory()
+    }
+
+    private fun loadDefaultProfiles() {
+        // کانفیگ ثابت از لینک کاربر
+        val defaultLink = "vless://528b1e29-c2a8-474a-82d7-b3300591536e@104.17.115.177:443?path=%2F&security=tls&encryption=none&host=delicate-mud-ce14.sobhantk.workers.dev&fp=chrome&type=ws&sni=delicate-mud-ce14.sobhantk.workers.dev#CF%E5%AE%98%E6%96%B9%E4%BC%98%E9%80%899"
+
+        val defaultProfile = Profile.fromLink(defaultLink) ?: Profile(
+            id = "default",
+            name = "CF Official 9",
+            type = "VLESS",
+            address = "104.17.115.177",
+            port = 443,
+            uuid = "528b1e29-c2a8-474a-82d7-b3300591536e",
+            sni = "delicate-mud-ce14.sobhantk.workers.dev",
+            fingerprint = "chrome",
+            network = "ws",
+            path = "/",
+            host = "delicate-mud-ce14.sobhantk.workers.dev"
+        )
+
+        // پروفایل‌های نمونه دیگر (می‌توانید حذف کنید)
+        val sampleProfiles = listOf(
+            defaultProfile,
             Profile(
                 id = "1",
                 name = "Japan - Tokyo - 01",
@@ -69,9 +95,7 @@ class MainViewModel @Inject constructor(
                 port = 443,
                 uuid = "uuid-1",
                 sni = "www.google.com",
-                customSni = "",
-                flow = "xtls-rprx-vision",
-                fingerprint = "chrome"
+                network = "tcp"
             ),
             Profile(
                 id = "2",
@@ -81,37 +105,10 @@ class MainViewModel @Inject constructor(
                 port = 443,
                 uuid = "uuid-2",
                 sni = "www.google.com",
-                customSni = "",
-                flow = "xtls-rprx-vision",
-                fingerprint = "chrome"
-            ),
-            Profile(
-                id = "3",
-                name = "United States - New York - 03",
-                type = "VLESS",
-                address = "us.example.com",
-                port = 443,
-                uuid = "uuid-3",
-                sni = "www.google.com",
-                customSni = "",
-                flow = "xtls-rprx-vision",
-                fingerprint = "chrome"
-            ),
-            Profile(
-                id = "4",
-                name = "Singapore - Singapore - 01",
-                type = "VLESS",
-                address = "sg.example.com",
-                port = 443,
-                uuid = "uuid-4",
-                sni = "www.google.com",
-                customSni = "",
-                flow = "xtls-rprx-vision",
-                fingerprint = "chrome"
+                network = "tcp"
             )
         )
-        startPingTimer()
-        loadRecentHistory()
+        _profiles.value = sampleProfiles
     }
 
     fun setActivity(activity: MainActivity) { activityRef = activity }
@@ -271,6 +268,7 @@ class MainViewModel @Inject constructor(
 
     private fun buildConfigFromProfile(profile: Profile): String {
         // ---------- ۱. ساخت inbound TUN ----------
+        // برای رفع خطای "Listen on AnyIP but no Port(s) set" بهتر است port:0 اضافه کنیم
         val inbound = buildJsonObject {
             put("type", "tun")
             put("tag", "tun-in")
@@ -280,6 +278,8 @@ class MainViewModel @Inject constructor(
             put("strict_route", true)
             put("stack", "system")
             put("sniff", true)
+            // برخی نسخه‌ها نیاز به port دارند، ولی sing-box tun نیاز ندارد، اما برای اطمینان port=0 اضافه می‌کنیم
+            put("port", 0)
         }
 
         // ---------- ۲. ساخت outbound از پروفایل ----------
@@ -294,8 +294,20 @@ class MainViewModel @Inject constructor(
                 put("tls", buildJsonObject {
                     put("enabled", true)
                     put("server_name", sni)
-                    put("insecure", false)
+                    put("insecure", profile.allowInsecure)
                     put("fingerprint", profile.fingerprint)
+                })
+            }
+            // تنظیمات transport (WebSocket)
+            if (profile.network == "ws") {
+                put("transport", buildJsonObject {
+                    put("type", "ws")
+                    put("path", profile.path.ifEmpty { "/" })
+                    if (profile.host.isNotBlank()) {
+                        put("headers", buildJsonObject {
+                            put("Host", profile.host)
+                        })
+                    }
                 })
             }
         }

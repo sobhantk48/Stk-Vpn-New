@@ -30,10 +30,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
+      - name: Create Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/keystore.jks
+
       - name: Build Release
         id: build
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          echo "🚀 Building APK..."
+          echo "🚀 Building signed APK..."
           ./gradlew assembleRelease --stacktrace --warning-mode=none 2>&1 | tee /tmp/build.log
           echo "BUILD_STATUS=$?" >> $GITHUB_ENV
 
@@ -51,11 +59,11 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Upload APK (only if build succeeded)
+      - name: Upload Signed APK
         if: env.BUILD_STATUS == '0'
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
+          name: app-release-signed
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: ignore
           retention-days: 30

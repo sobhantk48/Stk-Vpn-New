@@ -65,7 +65,8 @@ class SingBoxManager(private val context: Context) {
                 if (isInitialized) return@withContext Result.success(Unit)
                 Seq.setContext(context)
                 Log.d(TAG, "Seq.setContext done")
-                Libvray.initCoreEnv(workingDir, LOG_LEVEL)
+                // اصلاح: استفاده از Libv2ray (با حرف بزرگ L)
+                Libv2ray.initCoreEnv(workingDir, LOG_LEVEL)
                 Log.d(TAG, "Libv2ray.initCoreEnv done")
                 val callback = CoreCallback()
                 controller = Libv2ray.newCoreController(callback)
@@ -136,12 +137,10 @@ class SingBoxManager(private val context: Context) {
         }
     }
 
-    // تابع جدید برای به‌روزرسانی SNI در کانفیگ
     suspend fun updateSni(newSni: String): Result<Unit> =
         withContext(Dispatchers.IO) {
-            // در اینجا می‌توانید کانفیگ را به‌روز کنید
-            // فعلاً فقط لاگ می‌کنیم
             Log.d(TAG, "SNI updated to: $newSni")
+            // در آینده می‌توان کانفیگ را به‌روز کرد
             Result.success(Unit)
         }
 }

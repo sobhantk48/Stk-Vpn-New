@@ -30,26 +30,38 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Build Release (only errors)
+      - name: Build Release
+        id: build
         run: |
-          echo "🚀 Running Gradle build (errors only)..."
+          echo "🚀 Building APK..."
           ./gradlew assembleRelease --stacktrace --warning-mode=none 2>&1 | tee /tmp/build.log
+          echo "BUILD_STATUS=$?" >> $GITHUB_ENV
 
+      - name: Show Compilation Errors
+        run: |
           echo "::group::🔴 Compilation Errors"
           grep -E "^e: |error:|FAILED|Exception|Unresolved reference|cannot find symbol|not found|could not resolve|> A failure occurred" /tmp/build.log || echo "✅ No critical errors found"
           echo "::endgroup::"
 
-          if grep -q -E "^e: |FAILED|BUILD FAILED|Compilation error" /tmp/build.log; then
-            echo "::error::Build failed - check errors above"
-            exit 1
-          else
-            echo "✅ Build successful - no critical errors"
-          fi
-
-      - name: Upload full log artifact (optional)
+      - name: Upload Full Log (always)
         uses: actions/upload-artifact@v4
         with:
           name: full-log
           path: /tmp/build.log
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Upload APK (only if build succeeded)
+        if: env.BUILD_STATUS == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Fail if build failed
+        if: env.BUILD_STATUS != '0'
+        run: |
+          echo "::error::Build failed - check errors above"
+          exit 1

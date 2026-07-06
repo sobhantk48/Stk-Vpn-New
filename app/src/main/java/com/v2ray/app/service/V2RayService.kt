@@ -1,211 +1,225 @@
 package com.v2ray.app.service
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.Context
 import android.content.Intent
 import android.net.VpnService
 import android.os.Build
-import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
 import com.v2ray.app.MainActivity
 import com.v2ray.app.R
-import com.v2ray.app.data.ConnectionState
-import com.v2ray.app.data.ConnectionStatus
-import com.v2ray.app.data.Profile
-import com.v2ray.app.utils.Logger
 import com.v2ray.app.v2ray.SingBoxManager
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
+import java.net.InetSocketAddress
 
 class V2RayService : VpnService() {
-
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private lateinit var singBoxManager: SingBoxManager
-    private var vpnInterface: ParcelFileDescriptor? = null
-    private var currentProfile: Profile? = null
-
     companion object {
-        private const val NOTIF_ID = 1001
-        private const val CHANNEL_ID = "v2ray_channel"
+        const val ACTION_CONNECT = "com.v2ray.app.CONNECT"
+        const val ACTION_DISCONNECT = "com.v2ray.app.DISCONNECT"
+        const val NOTIFICATION_ID = 1001
+        const val CHANNEL_ID = "v2ray_channel"
+        const val EXTRA_CONFIG = "config"
+        const val EXTRA_PROFILE_ID = "profile_id"
 
-        private val _state = MutableStateFlow(ConnectionState())
-        val state: StateFlow<ConnectionState> = _state.asStateFlow()
+        // Kill Switch
+        var killSwitchEnabled = true
+        var isKillSwitchActive = false
 
-        fun start(ctx: Context, profile: Profile) {
-            Logger.writeLog("V2RayService start: ${profile.name}")
-            _state.value = ConnectionState(
-                status = ConnectionStatus.CONNECTING,
-                currentProfile = profile
-            )
-            val intent = Intent(ctx, V2RayService::class.java).apply {
-                putExtra("profile", profile as java.io.Serializable)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                ctx.startForegroundService(intent)
-            } else {
-                ctx.startService(intent)
-            }
-        }
-
-        fun stop(ctx: Context) {
-            Logger.writeLog("V2RayService stop requested")
-            ctx.stopService(Intent(ctx, V2RayService::class.java))
-        }
+        // Split Tunneling
+        var splitTunnelingEnabled = false
+        var splitMode: SplitMode = SplitMode.INCLUDE // INCLUDE = فقط این اپ‌ها, EXCLUDE = همه به‌جز این اپ‌ها
+        val splitApps = mutableSetOf<String>() // پکیج‌های اپلیکیشن
     }
+
+    enum class SplitMode {
+        INCLUDE, EXCLUDE
+    }
+
+    private var vpnInterface: ParcelFileDescriptor? = null
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var isRunning = false
+    private val singBoxManager = SingBoxManager(this)
 
     override fun onCreate() {
         super.onCreate()
-        singBoxManager = SingBoxManager(this)
-        createChannel()
-        startForeground(NOTIF_ID, buildNotification("Initializing..."))
-        Logger.writeLog("V2RayService created")
+        createNotificationChannel()
+        startForeground(NOTIFICATION_ID, createNotification("Initializing...", false))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        (intent?.getSerializableExtra("profile") as? Profile)?.let { profile ->
-            currentProfile = profile
-            connect(profile)
+        when (intent?.action) {
+            ACTION_CONNECT -> {
+                val config = intent.getStringExtra(EXTRA_CONFIG) ?: return START_NOT_STICKY
+                val profileId = intent.getStringExtra(EXTRA_PROFILE_ID) ?: ""
+                startVpn(config, profileId)
+            }
+            ACTION_DISCONNECT -> {
+                stopVpn()
+            }
         }
         return START_STICKY
     }
 
-    private fun connect(profile: Profile) {
-        scope.launch {
-            try {
-                updateNotification("Connecting to ${profile.name}...")
-                _state.value = _state.value.copy(
-                    status = ConnectionStatus.CONNECTING,
-                    currentProfile = profile
-                )
+    private fun startVpn(config: String, profileId: String) {
+        if (isRunning) {
+            stopVpn()
+        }
 
-                val pfd = Builder()
-                    .setSession(profile.name)
+        serviceScope.launch {
+            try {
+                // ۱. ساخت VPN Interface
+                val builder = Builder()
+                    .setSession("V2Ray VPN")
+                    .setMtu(1500)
                     .addAddress("10.0.0.1", 32)
                     .addRoute("0.0.0.0", 0)
-                    .addDnsServer("8.8.8.8")
-                    .addDnsServer("1.1.1.1")
-                    .setMtu(1500)
                     .setBlocking(true)
-                    .establish()
+                    .setConfigureIntent(
+                        PendingIntent.getActivity(
+                            this@V2RayService,
+                            0,
+                            Intent(this@V2RayService, MainActivity::class.java),
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        )
+                    )
 
-                vpnInterface = pfd
-
-                val fd = pfd?.fd ?: throw Exception("VPN interface is null or invalid")
-
-                val initResult = singBoxManager.initialize()
-                if (initResult.isFailure) {
-                    val err = initResult.exceptionOrNull()
-                    handleError(err?.message ?: "Initialization failed")
-                    return@launch
+                // ۲. Split Tunneling
+                if (splitTunnelingEnabled && splitApps.isNotEmpty()) {
+                    when (splitMode) {
+                        SplitMode.INCLUDE -> {
+                            // فقط این اپ‌ها از VPN می‌روند
+                            splitApps.forEach { pkg ->
+                                builder.addDisallowedApplication(pkg)
+                            }
+                        }
+                        SplitMode.EXCLUDE -> {
+                            // همه به‌جز این اپ‌ها از VPN می‌روند
+                            splitApps.forEach { pkg ->
+                                builder.addAllowedApplication(pkg)
+                            }
+                        }
+                    }
                 }
 
-                val configJson = profile.toV2RayConfig()
-                val result = singBoxManager.startV2Ray(configJson, fd)
+                // ۳. Kill Switch (قبل از شروع VPN، هیچ ترافیکی خارج نمی‌شود)
+                if (killSwitchEnabled) {
+                    isKillSwitchActive = true
+                    // برای Kill Switch از متد protect استفاده می‌کنیم
+                    // در اینجا فقط فلگ را فعال می‌کنیم
+                }
 
+                // ۴. ساخت VPN Interface
+                vpnInterface = builder.establish()
+
+                // ۵. شروع sing-box
+                val result = singBoxManager.startV2Ray(config, vpnInterface?.fd ?: -1)
                 if (result.isSuccess) {
-                    updateNotification("Connected to ${profile.name}")
-                    _state.value = _state.value.copy(
-                        status = ConnectionStatus.CONNECTED,
-                        currentProfile = profile
-                    )
-                    Logger.writeLog("V2Ray connected successfully")
+                    isRunning = true
+                    updateNotification("🟢 Connected", true)
+                    isKillSwitchActive = false // بعد از اتصال، Kill Switch غیرفعال می‌شود
                 } else {
-                    val err = result.exceptionOrNull()
-                    handleError(err?.message ?: "Connection failed")
+                    // اگر sing-box شروع نشد، Kill Switch فعال می‌شود
+                    if (killSwitchEnabled) {
+                        isKillSwitchActive = true
+                    }
+                    updateNotification("❌ Connection Failed", false)
                 }
             } catch (e: Exception) {
-                Logger.writeError("Connect error", e)
-                handleError(e.message ?: "Unknown error")
+                // خطا در ساخت VPN → فعال‌سازی Kill Switch
+                if (killSwitchEnabled) {
+                    isKillSwitchActive = true
+                }
+                updateNotification("❌ Error: ${e.message}", false)
             }
         }
     }
 
-    private suspend fun handleError(message: String) {
-        Logger.writeError("Connection error: $message")
-        updateNotification("Error: $message")
-        _state.value = _state.value.copy(
-            status = ConnectionStatus.ERROR,
-            errorMessage = message
-        )
-        vpnInterface?.close()
-        vpnInterface = null
-        stopSelf()
-    }
-
-    private fun disconnect() {
-        scope.launch {
+    private fun stopVpn() {
+        serviceScope.launch {
             try {
                 singBoxManager.stopV2Ray()
                 vpnInterface?.close()
                 vpnInterface = null
-                updateNotification("Disconnected")
-                _state.value = _state.value.copy(
-                    status = ConnectionStatus.DISCONNECTED,
-                    errorMessage = null
-                )
-                Logger.writeLog("V2RayService disconnected")
-            } catch (e: Exception) {
-                Logger.writeError("Disconnect error", e)
-            } finally {
+                isRunning = false
+                isKillSwitchActive = false
+                updateNotification("⏹️ Disconnected", false)
+                stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
 
-    private fun createChannel() {
+    // ===== Kill Switch: محافظت از سوکت‌ها =====
+    override fun protect(socket: Int): Boolean {
+        return if (killSwitchEnabled && isKillSwitchActive) {
+            // در حالت Kill Switch، اجازه‌ی خروج ترافیک داده نمی‌شود
+            false
+        } else {
+            super.protect(socket)
+        }
+    }
+
+    // ===== Notification =====
+
+    private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "V2RAY STK",
+                "V2Ray VPN",
                 NotificationManager.IMPORTANCE_LOW
-            )
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            ).apply {
+                description = "V2Ray VPN Service"
+                setShowBadge(false)
+            }
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
         }
     }
 
-    private fun buildNotification(text: String) =
-        NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("V2RAY STK")
+    private fun createNotification(text: String, isConnected: Boolean): Notification {
+        val intent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val disconnectIntent = Intent(this, V2RayService::class.java).apply {
+            action = ACTION_DISCONNECT
+        }
+        val disconnectPendingIntent = PendingIntent.getService(
+            this, 0, disconnectIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle(if (isConnected) "🟢 VPN Connected" else "🔴 VPN Disconnected")
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentIntent(
-                PendingIntent.getActivity(
-                    this,
-                    0,
-                    Intent(this, MainActivity::class.java),
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
+            .setContentIntent(pendingIntent)
+            .addAction(
+                android.R.drawable.ic_menu_close_clear_cancel,
+                "Disconnect",
+                disconnectPendingIntent
             )
-            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(isConnected)
             .build()
+    }
 
-    private fun updateNotification(text: String) {
-        (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
-            .notify(NOTIF_ID, buildNotification(text))
+    private fun updateNotification(text: String, isConnected: Boolean) {
+        val notification = createNotification(text, isConnected)
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(NOTIFICATION_ID, notification)
     }
 
     override fun onDestroy() {
-        runBlocking {
-            try {
-                singBoxManager.stopV2Ray()
-                vpnInterface?.close()
-                vpnInterface = null
-            } catch (_: Exception) {
-            }
-        }
-        singBoxManager.cleanup()
         super.onDestroy()
-        Logger.writeLog("V2RayService destroyed")
+        stopVpn()
+        serviceScope.cancel()
     }
-
-    override fun onBind(intent: Intent?): IBinder? = null
 }

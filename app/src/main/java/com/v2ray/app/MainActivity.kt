@@ -18,7 +18,6 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-
     private val vpnPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK) {
@@ -30,7 +29,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         setContent {
             V2rayAppTheme {
                 Surface(
@@ -38,14 +36,13 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val viewModel: MainViewModel = hiltViewModel()
-
                     LaunchedEffect(Unit) {
                         viewModel.setVpnPermissionLauncher { intent ->
                             vpnPermissionLauncher.launch(intent)
                         }
                     }
-
-                    AppNavigation(viewModel = viewModel)
+                    // فراخوانی بدون پارامتر (چون AppNavigation پارامتر نمی‌گیرد)
+                    AppNavigation()
                 }
             }
         }

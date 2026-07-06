@@ -1,4 +1,5 @@
 package com.v2ray.app.repository
+import com.v2ray.app.utils.Logger
 import com.v2ray.app.writeError
 import com.v2ray.app.writeLog
 
@@ -26,7 +27,7 @@ object ProfileRepository {
 
     fun initialize(ctx: Context) {
         prefs = ctx.getSharedPreferences("v2ray_profiles", Context.MODE_PRIVATE)
-        Logger.writeLog("ProfileRepository initialized")
+        Logger.Logger.log("ProfileRepository initialized")
         loadFromStorage()
     }
 
@@ -37,16 +38,16 @@ object ProfileRepository {
                 val list = json.decodeFromString<List<Profile>>(raw)
                 _profiles.value = list
 
-                Logger.writeLog("Loaded ${list.size} profiles")
+                Logger.Logger.log("Loaded ${list.size} profiles")
 
                 if (list.isNotEmpty() && list.none { it.selected }) {
                     select(list.first().id)
                 }
             } else {
-                Logger.writeLog("No profiles found")
+                Logger.Logger.log("No profiles found")
             }
         } catch (e: Exception) {
-            Logger.writeError("Load profiles failed", e)
+            Logger.Logger.e("Load profiles failed", e)
             _profiles.value = emptyList()
         }
     }
@@ -55,9 +56,9 @@ object ProfileRepository {
         try {
             val raw = json.encodeToString(_profiles.value)
             prefs.edit().putString("profiles", raw).apply()
-            Logger.writeLog("Saved ${_profiles.value.size} profiles")
+            Logger.Logger.log("Saved ${_profiles.value.size} profiles")
         } catch (e: Exception) {
-            Logger.writeError("Save profiles failed", e)
+            Logger.Logger.e("Save profiles failed", e)
         }
     }
 
@@ -71,7 +72,7 @@ object ProfileRepository {
             select(profile.id)
         }
 
-        Logger.writeLog("Added profile: ${profile.name}")
+        Logger.Logger.log("Added profile: ${profile.name}")
     }
 
     fun update(profile: Profile) {
@@ -79,7 +80,7 @@ object ProfileRepository {
             list.map { if (it.id == profile.id) profile else it }
         }
         save()
-        Logger.writeLog("Updated profile: ${profile.name}")
+        Logger.Logger.log("Updated profile: ${profile.name}")
     }
 
     fun delete(id: String) {
@@ -95,7 +96,7 @@ object ProfileRepository {
             }
         }
 
-        Logger.writeLog("Deleted profile: $id")
+        Logger.Logger.log("Deleted profile: $id")
     }
 
     fun select(id: String) {
@@ -103,7 +104,7 @@ object ProfileRepository {
             list.map { it.copy(selected = it.id == id) }
         }
         save()
-        Logger.writeLog("Selected profile: $id")
+        Logger.Logger.log("Selected profile: $id")
     }
 
     fun getSelected(): Profile? = _profiles.value.firstOrNull { it.selected }
@@ -111,6 +112,6 @@ object ProfileRepository {
     fun clear() {
         _profiles.value = emptyList()
         save()
-        Logger.writeLog("Cleared all profiles")
+        Logger.Logger.log("Cleared all profiles")
     }
 }

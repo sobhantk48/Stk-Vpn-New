@@ -1,4 +1,5 @@
 package com.v2ray.app.security
+import com.v2ray.app.utils.Logger
 import com.v2ray.app.writeError
 import com.v2ray.app.writeLog
 
@@ -14,20 +15,20 @@ object AdminSession {
 
     fun validatePassword(input: String): Boolean {
         val result = input == currentPassword
-        Logger.writeLog("Admin login: ${if (result) "success" else "failed"}")
+        Logger.Logger.log("Admin login: ${if (result) "success" else "failed"}")
         return result
     }
 
-    fun login() { _loggedIn.value = true; Logger.writeLog("Admin logged in") }
-    fun logout() { _loggedIn.value = false; Logger.writeLog("Admin logged out") }
+    fun login() { _loggedIn.value = true; Logger.Logger.log("Admin logged in") }
+    fun logout() { _loggedIn.value = false; Logger.Logger.log("Admin logged out") }
 
     fun changePassword(old: String, new: String): Boolean {
         return if (old == currentPassword && new.length >= 4) {
             currentPassword = new
-            Logger.writeLog("Password changed")
+            Logger.Logger.log("Password changed")
             true
         } else {
-            Logger.writeLog("Password change failed")
+            Logger.Logger.log("Password change failed")
             false
         }
     }

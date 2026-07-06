@@ -30,20 +30,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Create Keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/keystore.jks
-
       - name: Build Release
         id: build
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          echo "🚀 Building signed APK..."
+          echo "🚀 Building APK..."
           ./gradlew assembleRelease --stacktrace --warning-mode=none 2>&1 | tee /tmp/build.log
           echo "BUILD_STATUS=$?" >> $GITHUB_ENV
+          echo "::notice::Build status = $?"
+
+      - name: Show APK directory content
+        run: |
+          echo "::group::📁 APK directory content"
+          ls -la app/build/outputs/apk/release/ || echo "Directory not found"
+          echo "::endgroup::"
 
       - name: Show Compilation Errors
         run: |
@@ -51,7 +50,7 @@ jobs:
           grep -E "^e: |error:|FAILED|Exception|Unresolved reference|cannot find symbol|not found|could not resolve|> A failure occurred" /tmp/build.log || echo "✅ No critical errors found"
           echo "::endgroup::"
 
-      - name: Upload Full Log (always)
+      - name: Upload Full Log
         uses: actions/upload-artifact@v4
         with:
           name: full-log
@@ -59,11 +58,10 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Upload Signed APK
-        if: env.BUILD_STATUS == '0'
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-signed
+          name: app-release
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: ignore
           retention-days: 30

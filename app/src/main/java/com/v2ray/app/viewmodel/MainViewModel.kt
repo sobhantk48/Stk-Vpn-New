@@ -288,30 +288,29 @@ class MainViewModel @Inject constructor(
             }
         }
 
-        // کل کانفیگ با inbound TUN
+        // ساخت inbound TUN به صورت آرایه
+        val inbound = buildJsonObject {
+            put("type", "tun")
+            put("tag", "tun-in")
+            put("interface_name", "v2ray-tun")
+            put("address", JsonArray(listOf(JsonPrimitive("172.19.0.1/30"))))
+            put("auto_route", true)
+            put("strict_route", true)
+            put("stack", "system")
+            put("sniff", true)
+        }
+
+        val directOutbound = buildJsonObject {
+            put("type", "direct")
+            put("tag", "direct")
+        }
+
         val config = buildJsonObject {
             put("log", buildJsonObject {
                 put("level", "warn")
             })
-            put("inbounds", JsonArray(listOf(
-                buildJsonObject {
-                    put("type", "tun")
-                    put("tag", "tun-in")
-                    put("interface_name", "v2ray-tun")
-                    put("address", JsonArray(listOf(JsonPrimitive("172.19.0.1/30"))))
-                    put("auto_route", true)
-                    put("strict_route", true)
-                    put("stack", "system")
-                    put("sniff", true)
-                }
-            )))
-            put("outbounds", JsonArray(listOf(
-                outbound,
-                buildJsonObject {
-                    put("type", "direct")
-                    put("tag", "direct")
-                }
-            )))
+            put("inbounds", JsonArray(listOf(inbound)))
+            put("outbounds", JsonArray(listOf(outbound, directOutbound)))
             put("route", buildJsonObject {
                 put("auto_detect_interface", true)
                 put("final", "direct")

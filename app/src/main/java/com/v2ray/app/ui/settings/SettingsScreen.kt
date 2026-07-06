@@ -13,16 +13,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.v2ray.app.desync.DesyncManager
 import com.v2ray.app.service.V2RayService
 import com.v2ray.app.ui.theme.*
 import com.v2ray.app.viewmodel.MainViewModel
-import com.v2ray.app.desync.DesyncManager
 import java.io.File
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -468,7 +470,6 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Save button
             Button(
                 onClick = { /* Save settings */ },
                 modifier = Modifier.fillMaxWidth(),

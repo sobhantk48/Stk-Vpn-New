@@ -12,10 +12,12 @@ import com.v2ray.app.utils.BackupManager
 import com.v2ray.app.utils.SpeedTester
 import com.v2ray.app.utils.SniResult
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 

@@ -4,14 +4,12 @@ import android.content.Context
 import android.util.Log
 import com.v2ray.app.data.Profile
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -24,27 +22,18 @@ object BackupManager {
     private const val BACKUP_FILE_PREFIX = "profiles_backup_"
     private const val BACKUP_FILE_EXTENSION = ".json"
 
-    /**
-     * پشتیبان‌گیری از لیست پروفایل‌ها به فایل JSON
-     * @param context Context برنامه
-     * @param profiles لیست پروفایل‌ها
-     * @return مسیر فایل ذخیره‌شده یا null در صورت خطا
-     */
     fun backupProfiles(context: Context, profiles: List<Profile>): File? {
         return try {
-            // ایجاد پوشه‌ی پشتیبان
             val backupDir = File(context.filesDir, BACKUP_FOLDER)
             if (!backupDir.exists()) {
                 backupDir.mkdirs()
             }
 
-            // ساخت نام فایل با تاریخ
             val dateFormat = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault())
             val timestamp = dateFormat.format(Date())
             val fileName = "$BACKUP_FILE_PREFIX$timestamp$BACKUP_FILE_EXTENSION"
             val backupFile = File(backupDir, fileName)
 
-            // تبدیل پروفایل‌ها به JSON
             val jsonArray = buildJsonArray {
                 profiles.forEach { profile ->
                     add(buildJsonObject {
@@ -75,7 +64,6 @@ object BackupManager {
                 jsonArray
             )
 
-            // ذخیره در فایل
             FileOutputStream(backupFile).use { outputStream ->
                 outputStream.write(jsonString.toByteArray(Charsets.UTF_8))
             }
@@ -88,12 +76,6 @@ object BackupManager {
         }
     }
 
-    /**
-     * بازیابی پروفایل‌ها از فایل JSON
-     * @param context Context برنامه
-     * @param file فایل JSON حاوی پروفایل‌ها
-     * @return لیست پروفایل‌های بازیابی‌شده یا null در صورت خطا
-     */
     fun restoreProfiles(context: Context, file: File): List<Profile>? {
         return try {
             val jsonString = file.readText(Charsets.UTF_8)
@@ -135,9 +117,6 @@ object BackupManager {
         }
     }
 
-    /**
-     * دریافت لیست فایل‌های پشتیبان موجود
-     */
     fun getBackupFiles(context: Context): List<File> {
         val backupDir = File(context.filesDir, BACKUP_FOLDER)
         if (!backupDir.exists()) return emptyList()
@@ -148,9 +127,6 @@ object BackupManager {
             ?: emptyList()
     }
 
-    /**
-     * حذف یک فایل پشتیبان
-     */
     fun deleteBackupFile(file: File): Boolean {
         return try {
             file.delete()

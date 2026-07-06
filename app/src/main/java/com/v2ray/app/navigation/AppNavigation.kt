@@ -1,6 +1,5 @@
 package com.v2ray.app.navigation
 
-import android.content.Context
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
@@ -36,7 +35,6 @@ fun AppNavigation() {
     val viewModel: MainViewModel = hiltViewModel()
     val adminLoggedIn by AdminSession.loggedIn.collectAsState()
 
-    // تعیین صفحه‌ی شروع (Onboarding یا Home)
     val startDestination = if (OnboardingManager.isFirstLaunch(context)) {
         AppRoutes.ONBOARDING
     } else {
@@ -50,9 +48,11 @@ fun AppNavigation() {
         composable(AppRoutes.ONBOARDING) {
             OnboardingScreen(
                 onFinish = {
-                    OnboardingManager.setFirstLaunchDone(context)
-                    navController.navigate(AppRoutes.SPLASH) {
-                        popUpTo(AppRoutes.ONBOARDING) { inclusive = true }
+                    scope.launch {
+                        OnboardingManager.setFirstLaunchDone(context)
+                        navController.navigate(AppRoutes.SPLASH) {
+                            popUpTo(AppRoutes.ONBOARDING) { inclusive = true }
+                        }
                     }
                 }
             )

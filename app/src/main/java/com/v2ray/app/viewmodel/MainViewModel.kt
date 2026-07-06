@@ -33,55 +33,6 @@ class MainViewModel @Inject constructor(
     private val database = AppDatabase.getInstance(context)
     private val TAG = "MainViewModel"
 
-    // ===== کانفیگ تست معتبر (بدون کاما اضافی) =====
-    private val TEST_CONFIG = """
-{
-  "log": {"level": "warn"},
-  "inbounds": [
-    {
-      "type": "tun",
-      "tag": "tun-in",
-      "interface_name": "v2ray-tun",
-      "address": ["172.19.0.1/30"],
-      "port": 0,
-      "auto_route": true,
-      "strict_route": true,
-      "stack": "system",
-      "sniff": true
-    }
-  ],
-  "outbounds": [
-    {
-      "type": "vless",
-      "server": "104.17.115.177",
-      "server_port": 443,
-      "uuid": "528b1e29-c2a8-474a-82d7-b3300591536e",
-      "tls": {
-        "enabled": true,
-        "server_name": "delicate-mud-ce14.sobhantk.workers.dev",
-        "insecure": false,
-        "fingerprint": "chrome"
-      },
-      "transport": {
-        "type": "ws",
-        "path": "/",
-        "headers": {
-          "Host": "delicate-mud-ce14.sobhantk.workers.dev"
-        }
-      }
-    },
-    {
-      "type": "direct",
-      "tag": "direct"
-    }
-  ],
-  "route": {
-    "auto_detect_interface": true,
-    "final": "direct"
-  }
-}
-    """.trimIndent()
-
     private val _profiles = MutableStateFlow<List<Profile>>(emptyList())
     val profiles: StateFlow<List<Profile>> = _profiles.asStateFlow()
 
@@ -109,12 +60,15 @@ class MainViewModel @Inject constructor(
     private var activityRef: MainActivity? = null
 
     init {
+        // فقط یک پروفایل نمونه (که از لینک ساخته می‌شود) در ابتدا وجود دارد
+        // کاربر می‌تواند از پنل ادمین کانفیگ خود را اضافه کند
         loadDefaultProfiles()
         startPingTimer()
         loadRecentHistory()
     }
 
     private fun loadDefaultProfiles() {
+        // یک پروفایل نمونه با کانفیگ کاربر (می‌تواند حذف شود)
         val defaultLink = "vless://528b1e29-c2a8-474a-82d7-b3300591536e@104.17.115.177:443?path=%2F&security=tls&encryption=none&host=delicate-mud-ce14.sobhantk.workers.dev&fp=chrome&type=ws&sni=delicate-mud-ce14.sobhantk.workers.dev#CF%E5%AE%98%E6%96%B9%E4%BC%98%E9%80%899"
 
         val defaultProfile = Profile.fromLink(defaultLink) ?: Profile(
@@ -131,29 +85,7 @@ class MainViewModel @Inject constructor(
             host = "delicate-mud-ce14.sobhantk.workers.dev"
         )
 
-        _profiles.value = listOf(
-            defaultProfile,
-            Profile(
-                id = "1",
-                name = "Japan - Tokyo - 01",
-                type = "VLESS",
-                address = "jp.example.com",
-                port = 443,
-                uuid = "uuid-1",
-                sni = "www.google.com",
-                network = "tcp"
-            ),
-            Profile(
-                id = "2",
-                name = "Germany - Frankfurt - 02",
-                type = "VLESS",
-                address = "de.example.com",
-                port = 443,
-                uuid = "uuid-2",
-                sni = "www.google.com",
-                network = "tcp"
-            )
-        )
+        _profiles.value = listOf(defaultProfile)
     }
 
     fun setActivity(activity: MainActivity) { activityRef = activity }
@@ -294,35 +226,37 @@ class MainViewModel @Inject constructor(
     }
 
     fun onVpnPermissionGranted() {
-        val config = TEST_CONFIG
+        val selected = selectedProfile.value ?: return
+        val config = buildConfigFromProfile(selected)
         Log.d(TAG, "Generated config: $config")
         val intent = Intent(context, V2RayService::class.java).apply {
             action = V2RayService.ACTION_CONNECT
             putExtra(V2RayService.EXTRA_CONFIG, config)
-            putExtra(V2RayService.EXTRA_PROFILE_ID, "test")
+            putExtra(V2RayService.EXTRA_PROFILE_ID, selected.id)
         }
         context.startService(intent)
         _isConnected.value = true
         connectStartTime = System.currentTimeMillis()
-        currentProfileId = "test"
+        currentProfileId = selected.id
         viewModelScope.launch {
-            selectedProfile.value?.let { addHistory(it, "CONNECT") }
+            addHistory(selected, "CONNECT")
         }
     }
 
     private fun buildConfigFromProfile(profile: Profile): String {
+        // ---------- inbound TUN (بدون port) ----------
         val inbound = buildJsonObject {
             put("type", "tun")
             put("tag", "tun-in")
             put("interface_name", "v2ray-tun")
             put("address", JsonArray(listOf(JsonPrimitive("172.19.0.1/30"))))
-            put("port", 0)
             put("auto_route", true)
             put("strict_route", true)
             put("stack", "system")
             put("sniff", true)
         }
 
+        // ---------- outbound از پروفایل ----------
         val outbound = buildJsonObject {
             put("type", profile.type.lowercase())
             put("server", profile.address)

@@ -2,6 +2,7 @@ package com.v2ray.app.viewmodel
 
 import android.app.Application
 import android.content.Intent
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.v2ray.app.MainActivity
@@ -19,6 +20,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.*
 import java.io.File
 import javax.inject.Inject
 
@@ -29,6 +31,7 @@ class MainViewModel @Inject constructor(
 
     private val context = application.applicationContext
     private val database = AppDatabase.getInstance(context)
+    private val TAG = "MainViewModel"
 
     private val _profiles = MutableStateFlow<List<Profile>>(emptyList())
     val profiles: StateFlow<List<Profile>> = _profiles.asStateFlow()
@@ -54,21 +57,10 @@ class MainViewModel @Inject constructor(
 
     private var connectStartTime: Long = 0
     private var currentProfileId: String? = null
-
-    // برای دریافت مرجع Activity (برای درخواست مجوز)
     private var activityRef: MainActivity? = null
 
     init {
-        loadSampleProfiles()
-        startPingTimer()
-        loadRecentHistory()
-    }
-
-    fun setActivity(activity: MainActivity) {
-        activityRef = activity
-    }
-
-    private fun loadSampleProfiles() {
+        // بارگذاری نمونه‌ها (بعداً با Room جایگزین می‌شود)
         _profiles.value = listOf(
             Profile(
                 id = "1",
@@ -119,7 +111,11 @@ class MainViewModel @Inject constructor(
                 fingerprint = "chrome"
             )
         )
+        startPingTimer()
+        loadRecentHistory()
     }
+
+    fun setActivity(activity: MainActivity) { activityRef = activity }
 
     private fun startPingTimer() {
         viewModelScope.launch {
@@ -133,17 +129,14 @@ class MainViewModel @Inject constructor(
     private suspend fun updatePings() {
         val currentProfiles = _profiles.value
         if (currentProfiles.isEmpty()) return
-
         val results = currentProfiles.map { profile ->
             viewModelScope.async {
                 SpeedTester.checkSni(profile.address, profile.port, 5)
             }
         }.awaitAll()
-
         val pingMap = currentProfiles.mapIndexed { index, profile ->
             profile.id to results[index]
         }.toMap()
-
         _pings.value = pingMap
     }
 
@@ -155,27 +148,16 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // ===== توابع مدیریت پروفایل =====
-
+    // ===== مدیریت پروفایل =====
     fun add(profile: Profile) {
         _profiles.update { current ->
             current + profile.copy(id = java.util.UUID.randomUUID().toString())
         }
     }
 
-    fun addAll(profiles: List<Profile>) {
-        _profiles.update { current ->
-            current + profiles.map { it.copy(id = java.util.UUID.randomUUID().toString()) }
-        }
-    }
-
     fun delete(id: String) {
-        _profiles.update { current ->
-            current.filter { it.id != id }
-        }
-        if (_selectedId.value == id) {
-            _selectedId.value = null
-        }
+        _profiles.update { current -> current.filter { it.id != id } }
+        if (_selectedId.value == id) _selectedId.value = null
     }
 
     fun update(profile: Profile) {
@@ -184,28 +166,16 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun select(id: String) {
-        _selectedId.value = id
-    }
-
-    fun selectProfile(profile: Profile) {
-        _selectedId.value = profile.id
-    }
+    fun select(id: String) { _selectedId.value = id }
+    fun selectProfile(profile: Profile) { _selectedId.value = profile.id }
 
     fun updateCustomSni(profileId: String, newSni: String) {
         _profiles.update { current ->
-            current.map { profile ->
-                if (profile.id == profileId) {
-                    profile.copy(customSni = newSni)
-                } else {
-                    profile
-                }
-            }
+            current.map { if (it.id == profileId) it.copy(customSni = newSni) else it }
         }
     }
 
     // ===== Recent Activity =====
-
     suspend fun addHistory(profile: Profile, action: String, duration: Long = 0) {
         val history = ConnectionHistory(
             profileId = profile.id,
@@ -218,22 +188,20 @@ class MainViewModel @Inject constructor(
     }
 
     // ===== Backup & Restore =====
-
     suspend fun backupProfiles(): File? = withContext(Dispatchers.IO) {
         try {
-            val currentProfiles = _profiles.value
-            if (currentProfiles.isEmpty()) {
-                _backupStatus.value = BackupStatus.Error("No profiles to backup")
+            val current = _profiles.value
+            if (current.isEmpty()) {
+                _backupStatus.value = BackupStatus.Error("No profiles")
                 return@withContext null
             }
-
-            val backupFile = BackupManager.backupProfiles(context, currentProfiles)
-            if (backupFile != null) {
-                _backupStatus.value = BackupStatus.Success("Backup saved: ${backupFile.name}")
+            val file = BackupManager.backupProfiles(context, current)
+            if (file != null) {
+                _backupStatus.value = BackupStatus.Success("Backup saved: ${file.name}")
             } else {
                 _backupStatus.value = BackupStatus.Error("Backup failed")
             }
-            backupFile
+            file
         } catch (e: Exception) {
             _backupStatus.value = BackupStatus.Error(e.message ?: "Backup error")
             null
@@ -248,7 +216,7 @@ class MainViewModel @Inject constructor(
                 _backupStatus.value = BackupStatus.Success("Restored ${restored.size} profiles")
                 true
             } else {
-                _backupStatus.value = BackupStatus.Error("Restore failed or empty")
+                _backupStatus.value = BackupStatus.Error("Restore failed")
                 false
             }
         } catch (e: Exception) {
@@ -257,33 +225,18 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun getBackupFiles(): List<File> {
-        return BackupManager.getBackupFiles(context)
-    }
+    fun getBackupFiles(): List<File> = BackupManager.getBackupFiles(context)
+    fun deleteBackupFile(file: File): Boolean = BackupManager.deleteBackupFile(file)
+    fun clearBackupStatus() { _backupStatus.value = null }
 
-    fun deleteBackupFile(file: File): Boolean {
-        return BackupManager.deleteBackupFile(file)
-    }
-
-    fun clearBackupStatus() {
-        _backupStatus.value = null
-    }
-
-    // ===== Connection Toggle =====
-
+    // ===== Connection =====
     fun toggleConnection() {
         if (_isConnected.value) {
-            // قطع اتصال
-            val intent = Intent(context, V2RayService::class.java).apply {
-                action = V2RayService.ACTION_DISCONNECT
-            }
-            context.stopService(intent)
+            context.stopService(Intent(context, V2RayService::class.java))
             _isConnected.value = false
-
-            // ثبت تاریخچه قطع
             viewModelScope.launch {
-                currentProfileId?.let { profileId ->
-                    val profile = _profiles.value.find { it.id == profileId }
+                currentProfileId?.let { id ->
+                    val profile = _profiles.value.find { it.id == id }
                     profile?.let {
                         val duration = if (connectStartTime > 0) System.currentTimeMillis() - connectStartTime else 0
                         addHistory(it, "DISCONNECT", duration)
@@ -293,15 +246,16 @@ class MainViewModel @Inject constructor(
                 connectStartTime = 0
             }
         } else {
-            // درخواست مجوز VPN از Activity
             activityRef?.requestVpnPermission()
         }
     }
 
-    // تابعی که بعد از گرفتن مجوز VPN توسط Activity صدا زده می‌شود
     fun onVpnPermissionGranted() {
         val selected = selectedProfile.value ?: return
         val config = buildConfigFromProfile(selected)
+
+        // لاگ کانفیگ برای دیباگ
+        Log.d(TAG, "Config: $config")
 
         val intent = Intent(context, V2RayService::class.java).apply {
             action = V2RayService.ACTION_CONNECT
@@ -309,50 +263,79 @@ class MainViewModel @Inject constructor(
             putExtra(V2RayService.EXTRA_PROFILE_ID, selected.id)
         }
         context.startService(intent)
-
         _isConnected.value = true
         connectStartTime = System.currentTimeMillis()
         currentProfileId = selected.id
-
-        // ثبت تاریخچه اتصال
         viewModelScope.launch {
             addHistory(selected, "CONNECT")
         }
     }
 
     private fun buildConfigFromProfile(profile: Profile): String {
-        // اینجا باید کانفیگ واقعی ساخته شود
-        // فعلاً یک کانفیگ نمونه برمی‌گردانیم
-        return """
-        {
-            "inbounds": [],
-            "outbounds": [
-                {
-                    "type": "${profile.type.lowercase()}",
-                    "server": "${profile.address}",
-                    "server_port": ${profile.port},
-                    "uuid": "${profile.uuid}",
-                    "flow": "${profile.flow}",
-                    "tls": {
-                        "enabled": true,
-                        "server_name": "${profile.getEffectiveSni()}",
-                        "fingerprint": "${profile.fingerprint}"
+        // ساخت outbound
+        val outbound = buildJsonObject {
+            put("type", profile.type.lowercase())
+            put("server", profile.address)
+            put("server_port", profile.port)
+            put("uuid", profile.uuid)
+            if (profile.flow.isNotBlank()) put("flow", profile.flow)
+            val sni = profile.getEffectiveSni()
+            if (sni.isNotBlank()) {
+                put("tls", buildJsonObject {
+                    put("enabled", true)
+                    put("server_name", sni)
+                    put("insecure", false)
+                    put("fingerprint", profile.fingerprint)
+                })
+            }
+            // در صورت نیاز transport
+            if (profile.network.isNotBlank()) {
+                put("transport", buildJsonObject {
+                    put("type", profile.network)
+                    if (profile.path.isNotBlank()) put("path", profile.path)
+                    if (sni.isNotBlank()) {
+                        put("headers", buildJsonObject {
+                            put("Host", sni)
+                        })
                     }
-                }
-            ]
+                })
+            }
         }
-        """.trimIndent()
+
+        // کل کانفیگ با inbound TUN
+        val config = buildJsonObject {
+            put("log", buildJsonObject {
+                put("level", "warn")
+            })
+            put("inbounds", JsonArray(listOf(
+                buildJsonObject {
+                    put("type", "tun")
+                    put("tag", "tun-in")
+                    put("interface_name", "v2ray-tun")
+                    put("address", JsonArray(listOf("172.19.0.1/30")))
+                    put("auto_route", true)
+                    put("strict_route", true)
+                    put("stack", "system")
+                    put("sniff", true)
+                }
+            )))
+            put("outbounds", JsonArray(listOf(
+                outbound,
+                buildJsonObject {
+                    put("type", "direct")
+                    put("tag", "direct")
+                }
+            )))
+            put("route", buildJsonObject {
+                put("auto_detect_interface", true)
+                put("final", "direct")
+            })
+        }
+        return config.toString()
     }
 
-    // ===== Domain Fronting =====
-
-    fun startFronting() {
-        // پیاده‌سازی واقعی
-    }
-
-    fun stopFronting() {
-        // پیاده‌سازی واقعی
-    }
+    fun startFronting() { /* TODO */ }
+    fun stopFronting() { /* TODO */ }
 }
 
 sealed class BackupStatus {

@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -20,26 +21,21 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LogViewerScreen(onBack: () -> Unit) {
-
     var logs by rememberSaveable { mutableStateOf("Loading logs...") }
     var isLoading by rememberSaveable { mutableStateOf(true) }
     var refreshTrigger by rememberSaveable { mutableStateOf(0) }
 
-    // بارگذاری لاگ‌ها
     LaunchedEffect(refreshTrigger) {
         isLoading = true
         val content = Logger.getLogContent()
-
         logs = if (content.isNullOrBlank()) {
             "No logs available.\n\nLog file path: ${Logger.getLogFilePath() ?: "Unknown"}\n\nMake sure the app has storage permissions."
         } else {
             content
         }
-
         isLoading = false
     }
 
-    // رفرش خودکار هر ۵ ثانیه بدون while(true)
     LaunchedEffect(Unit) {
         while (true) {
             delay(5000)
@@ -71,22 +67,18 @@ fun LogViewerScreen(onBack: () -> Unit) {
             )
         }
     ) { padding ->
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(DarkBackground)
                 .padding(padding)
         ) {
-
-            // مسیر فایل لاگ
             Text(
                 text = "Log File: ${Logger.getLogFilePath() ?: "Unknown"}",
                 color = WhiteText.copy(0.7f),
                 fontSize = 12.sp,
                 modifier = Modifier.padding(16.dp)
             )
-
             Divider(color = WhiteText.copy(0.1f))
 
             if (isLoading) {

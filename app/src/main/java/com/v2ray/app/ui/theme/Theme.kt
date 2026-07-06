@@ -17,6 +17,7 @@ private val DarkColors = darkColorScheme(
     onError = WhiteText
 )
 
+// تابع اصلی با نام AppTheme (برای استفاده در سایر نقاط)
 @Composable
 fun AppTheme(content: @Composable () -> Unit) {
     MaterialTheme(
@@ -25,4 +26,10 @@ fun AppTheme(content: @Composable () -> Unit) {
         shapes = Shapes,
         content = content
     )
+}
+
+// نام مستعار برای سازگاری با MainActivity
+@Composable
+fun V2rayAppTheme(content: @Composable () -> Unit) {
+    AppTheme(content = content)
 }

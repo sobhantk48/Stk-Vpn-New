@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.v2ray.app.MainActivity
 import com.v2ray.app.data.AppDatabase
 import com.v2ray.app.data.ConnectionHistory
 import com.v2ray.app.data.Profile

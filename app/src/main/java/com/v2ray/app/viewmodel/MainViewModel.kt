@@ -60,7 +60,6 @@ class MainViewModel @Inject constructor(
     private var activityRef: MainActivity? = null
 
     init {
-        // بارگذاری نمونه‌ها (بعداً با Room جایگزین می‌شود)
         _profiles.value = listOf(
             Profile(
                 id = "1",
@@ -148,10 +147,15 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // ===== مدیریت پروفایل =====
     fun add(profile: Profile) {
         _profiles.update { current ->
             current + profile.copy(id = java.util.UUID.randomUUID().toString())
+        }
+    }
+
+    fun addAll(profiles: List<Profile>) {
+        _profiles.update { current ->
+            current + profiles.map { it.copy(id = java.util.UUID.randomUUID().toString()) }
         }
     }
 
@@ -175,7 +179,6 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // ===== Recent Activity =====
     suspend fun addHistory(profile: Profile, action: String, duration: Long = 0) {
         val history = ConnectionHistory(
             profileId = profile.id,
@@ -187,7 +190,6 @@ class MainViewModel @Inject constructor(
         database.historyDao().insert(history)
     }
 
-    // ===== Backup & Restore =====
     suspend fun backupProfiles(): File? = withContext(Dispatchers.IO) {
         try {
             val current = _profiles.value
@@ -229,7 +231,6 @@ class MainViewModel @Inject constructor(
     fun deleteBackupFile(file: File): Boolean = BackupManager.deleteBackupFile(file)
     fun clearBackupStatus() { _backupStatus.value = null }
 
-    // ===== Connection =====
     fun toggleConnection() {
         if (_isConnected.value) {
             context.stopService(Intent(context, V2RayService::class.java))
@@ -253,10 +254,7 @@ class MainViewModel @Inject constructor(
     fun onVpnPermissionGranted() {
         val selected = selectedProfile.value ?: return
         val config = buildConfigFromProfile(selected)
-
-        // لاگ کانفیگ برای دیباگ
         Log.d(TAG, "Config: $config")
-
         val intent = Intent(context, V2RayService::class.java).apply {
             action = V2RayService.ACTION_CONNECT
             putExtra(V2RayService.EXTRA_CONFIG, config)
@@ -288,18 +286,6 @@ class MainViewModel @Inject constructor(
                     put("fingerprint", profile.fingerprint)
                 })
             }
-            // در صورت نیاز transport
-            if (profile.network.isNotBlank()) {
-                put("transport", buildJsonObject {
-                    put("type", profile.network)
-                    if (profile.path.isNotBlank()) put("path", profile.path)
-                    if (sni.isNotBlank()) {
-                        put("headers", buildJsonObject {
-                            put("Host", sni)
-                        })
-                    }
-                })
-            }
         }
 
         // کل کانفیگ با inbound TUN
@@ -312,7 +298,7 @@ class MainViewModel @Inject constructor(
                     put("type", "tun")
                     put("tag", "tun-in")
                     put("interface_name", "v2ray-tun")
-                    put("address", JsonArray(listOf("172.19.0.1/30")))
+                    put("address", JsonArray(listOf(JsonPrimitive("172.19.0.1/30"))))
                     put("auto_route", true)
                     put("strict_route", true)
                     put("stack", "system")

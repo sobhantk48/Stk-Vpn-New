@@ -15,7 +15,7 @@
 | **فاز ۳** | پیاده‌سازی Domain Fronting | ۳ | ✅ انجام شد |
 | **فاز ۴** | اضافه کردن Desync و Fragment | ۲ | ✅ انجام شد |
 | **فاز ۵** | Kill Switch و Split Tunneling | ۳ | ✅ انجام شد |
-| **فاز ۶** | Recent Activity و پشتیبان‌گیری | ۳ | ❌ انجام نشده |
+| **فاز ۶** | Recent Activity و پشتیبان‌گیری | ۳ | ⏳ در حال انجام |
 | **فاز ۷** | بهبود UI/UX و انتشار | ۴ | ❌ انجام نشده |
 
 ---
@@ -64,8 +64,8 @@
 ---
 
 ### فاز ۶: Recent Activity و پشتیبان‌گیری
-- [ ] **۶-۱**: پیاده‌سازی `ConnectionHistory.kt` و ذخیره‌سازی در Room
-- [ ] **۶-۲**: اضافه کردن Recent Activity به Dashboard
+- [x] **۶-۱**: پیاده‌سازی `ConnectionHistory.kt` و ذخیره‌سازی در Room
+- [x] **۶-۲**: اضافه کردن Recent Activity به Dashboard
 - [ ] **۶-۳**: پیاده‌سازی Backup & Restore (JSON/WebDAV)
 
 ---
@@ -88,7 +88,7 @@
 | ۳-۱ تا ۳-۳ | `CertificateManager.kt`, `DohResolver.kt`, `ProxyServer.kt` | `DashboardScreen.kt`, `MainViewModel.kt`, `build.gradle` |
 | ۴-۱ تا ۴-۲ | `FragmentManager.kt`, `DesyncManager.kt` | `SettingsScreen.kt` |
 | ۵-۱ تا ۵-۳ | – | `VpnService.kt`, `SettingsScreen.kt` |
-| ۶-۱ تا ۶-۳ | `ConnectionHistory.kt` | `DashboardScreen.kt` |
+| ۶-۱ تا ۶-۳ | `ConnectionHistory.kt`, `HistoryDao.kt`, `AppDatabase.kt` | `DashboardScreen.kt`, `MainViewModel.kt`, `build.gradle` |
 | ۷-۱ تا ۷-۴ | – | همه فایل‌های UI |
 
 ---
@@ -104,4 +104,4 @@
 ## 🟢 وضعیت فعلی
 - **تاریخ شروع:** ۱۴۰۵-۰۴-۱۵
 - **فاز فعال:** فاز ۶ (Recent Activity و پشتیبان‌گیری)
-- **وظیفه فعال:** ۶-۱ (پیاده‌سازی ConnectionHistory)
+- **وظیفه فعال:** ۶-۳ (پیاده‌سازی Backup & Restore)

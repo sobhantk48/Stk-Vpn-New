@@ -1,12 +1,14 @@
 package com.v2ray.app.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.v2ray.app.data.ConnectionHistory
 import com.v2ray.app.data.AppDatabase
 import com.v2ray.app.data.Profile
 import com.v2ray.app.fronting.ProxyServer
+import com.v2ray.app.utils.BackupManager
 import com.v2ray.app.utils.SpeedTester
 import com.v2ray.app.utils.SniResult
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -14,6 +16,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
@@ -41,6 +44,9 @@ class MainViewModel @Inject constructor(
 
     private val _recentHistory = MutableStateFlow<List<ConnectionHistory>>(emptyList())
     val recentHistory: StateFlow<List<ConnectionHistory>> = _recentHistory.asStateFlow()
+
+    private val _backupStatus = MutableStateFlow<BackupStatus?>(null)
+    val backupStatus: StateFlow<BackupStatus?> = _backupStatus.asStateFlow()
 
     // Domain Fronting
     private var proxyServer: ProxyServer? = null
@@ -151,6 +157,12 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun addAll(profiles: List<Profile>) {
+        _profiles.update { current ->
+            current + profiles.map { it.copy(id = java.util.UUID.randomUUID().toString()) }
+        }
+    }
+
     fun delete(id: String) {
         _profiles.update { current ->
             current.filter { it.id != id }
@@ -199,12 +211,63 @@ class MainViewModel @Inject constructor(
         database.historyDao().insert(history)
     }
 
+    // ===== Backup & Restore =====
+
+    suspend fun backupProfiles(): File? = withContext(Dispatchers.IO) {
+        try {
+            val currentProfiles = _profiles.value
+            if (currentProfiles.isEmpty()) {
+                _backupStatus.value = BackupStatus.Error("No profiles to backup")
+                return@withContext null
+            }
+
+            val backupFile = BackupManager.backupProfiles(getApplication(), currentProfiles)
+            if (backupFile != null) {
+                _backupStatus.value = BackupStatus.Success("Backup saved: ${backupFile.name}")
+            } else {
+                _backupStatus.value = BackupStatus.Error("Backup failed")
+            }
+            backupFile
+        } catch (e: Exception) {
+            _backupStatus.value = BackupStatus.Error(e.message ?: "Backup error")
+            null
+        }
+    }
+
+    suspend fun restoreProfiles(file: File): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val restored = BackupManager.restoreProfiles(getApplication(), file)
+            if (restored != null && restored.isNotEmpty()) {
+                addAll(restored)
+                _backupStatus.value = BackupStatus.Success("Restored ${restored.size} profiles")
+                true
+            } else {
+                _backupStatus.value = BackupStatus.Error("Restore failed or empty")
+                false
+            }
+        } catch (e: Exception) {
+            _backupStatus.value = BackupStatus.Error(e.message ?: "Restore error")
+            false
+        }
+    }
+
+    fun getBackupFiles(): List<File> {
+        return BackupManager.getBackupFiles(getApplication())
+    }
+
+    fun deleteBackupFile(file: File): Boolean {
+        return BackupManager.deleteBackupFile(file)
+    }
+
+    fun clearBackupStatus() {
+        _backupStatus.value = null
+    }
+
     // ===== Connection Toggle =====
 
     fun toggleConnection() {
         viewModelScope.launch {
             if (_isConnected.value) {
-                // قطع اتصال
                 val connectedAt = connectStartTime
                 val duration = if (connectedAt > 0) System.currentTimeMillis() - connectedAt else 0
                 _isConnected.value = false
@@ -217,7 +280,6 @@ class MainViewModel @Inject constructor(
                 currentProfileId = null
                 connectStartTime = 0
             } else {
-                // اتصال
                 _isConnected.value = true
                 connectStartTime = System.currentTimeMillis()
                 selectedProfile.value?.let { profile ->
@@ -251,4 +313,9 @@ class MainViewModel @Inject constructor(
     fun setVpnPermissionLauncher(launcher: (android.content.Intent) -> Unit) {
         // پیاده‌سازی برای درخواست مجوز VPN
     }
+}
+
+sealed class BackupStatus {
+    data class Success(val message: String) : BackupStatus()
+    data class Error(val message: String) : BackupStatus()
 }

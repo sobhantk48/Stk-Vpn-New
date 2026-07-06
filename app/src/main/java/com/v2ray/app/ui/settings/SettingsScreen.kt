@@ -36,7 +36,6 @@ fun SettingsScreen(
     val packageManager = context.packageManager
     val scope = rememberCoroutineScope()
 
-    // Theme
     var isDarkTheme by remember { mutableStateOf(true) }
 
     // Kill Switch

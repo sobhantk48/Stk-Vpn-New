@@ -59,6 +59,7 @@ object BackupManager {
                 }
             }
 
+            // استفاده از Json.encodeToString بدون serializer
             val jsonString = Json { prettyPrint = true }.encodeToString(
                 kotlinx.serialization.builtins.serializer(),
                 jsonArray

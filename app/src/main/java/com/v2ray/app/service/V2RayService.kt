@@ -8,17 +8,16 @@ import android.content.Intent
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.v2ray.app.MainActivity
 import com.v2ray.app.R
 import com.v2ray.app.model.SplitMode
+import com.v2ray.app.utils.Logger
 import com.v2ray.app.v2ray.SingBoxManager
 import kotlinx.coroutines.*
 
 class V2RayService : VpnService() {
     companion object {
-        private const val TAG = "V2RayService"
         const val ACTION_CONNECT = "com.v2ray.app.CONNECT"
         const val ACTION_DISCONNECT = "com.v2ray.app.DISCONNECT"
         const val NOTIFICATION_ID = 1001
@@ -39,6 +38,7 @@ class V2RayService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
+        Logger.i("V2RayService onCreate")
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification("Initializing...", false))
     }
@@ -48,9 +48,11 @@ class V2RayService : VpnService() {
             ACTION_CONNECT -> {
                 val config = intent.getStringExtra(EXTRA_CONFIG) ?: return START_NOT_STICKY
                 val profileId = intent.getStringExtra(EXTRA_PROFILE_ID) ?: ""
+                Logger.i("Received CONNECT action for profile: $profileId")
                 startVpn(config, profileId)
             }
             ACTION_DISCONNECT -> {
+                Logger.i("Received DISCONNECT action")
                 stopVpn()
             }
         }
@@ -59,12 +61,13 @@ class V2RayService : VpnService() {
 
     private fun startVpn(config: String, profileId: String) {
         if (isRunning) {
+            Logger.d("VPN already running, stopping first")
             stopVpn()
         }
 
         serviceScope.launch {
             try {
-                // ۱. ساخت VPN Interface
+                Logger.i("Building VPN interface...")
                 val builder = Builder()
                     .setSession("V2Ray VPN")
                     .setMtu(1500)
@@ -80,8 +83,8 @@ class V2RayService : VpnService() {
                         )
                     )
 
-                // Split Tunneling
                 if (splitTunnelingEnabled && splitApps.isNotEmpty()) {
+                    Logger.d("Split Tunneling enabled with ${splitApps.size} apps")
                     when (splitMode) {
                         SplitMode.INCLUDE -> {
                             splitApps.forEach { pkg -> builder.addDisallowedApplication(pkg) }
@@ -93,28 +96,27 @@ class V2RayService : VpnService() {
                 }
 
                 vpnInterface = builder.establish()
-                Log.d(TAG, "VPN interface established with fd: ${vpnInterface?.fd}")
+                Logger.i("VPN interface established with fd: ${vpnInterface?.fd}")
 
-                // ۲. شروع sing-box
                 val fd = vpnInterface?.fd ?: -1
                 if (fd == -1) {
                     throw Exception("VPN interface fd is invalid")
                 }
 
+                Logger.i("Starting sing-box with config: $config")
                 val result = singBoxManager.startV2Ray(config, fd)
                 if (result.isSuccess) {
                     isRunning = true
                     updateNotification("🟢 Connected", true)
-                    Log.d(TAG, "V2Ray started successfully")
+                    Logger.i("V2Ray started successfully")
                 } else {
                     val error = result.exceptionOrNull()?.message ?: "Unknown error"
+                    Logger.e("V2Ray start failed: $error", result.exceptionOrNull())
                     updateNotification("❌ Connection Failed: $error", false)
-                    Log.e(TAG, "V2Ray start failed: $error")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "startVpn error", e)
+                Logger.e("startVpn error", e)
                 updateNotification("❌ Error: ${e.message}", false)
-                // بستن VPN Interface در صورت خطا
                 vpnInterface?.close()
                 vpnInterface = null
             }
@@ -124,6 +126,7 @@ class V2RayService : VpnService() {
     private fun stopVpn() {
         serviceScope.launch {
             try {
+                Logger.i("Stopping VPN...")
                 singBoxManager.stopV2Ray()
                 vpnInterface?.close()
                 vpnInterface = null
@@ -131,8 +134,9 @@ class V2RayService : VpnService() {
                 updateNotification("⏹️ Disconnected", false)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
+                Logger.i("VPN stopped")
             } catch (e: Exception) {
-                Log.e(TAG, "stopVpn error", e)
+                Logger.e("stopVpn error", e)
             }
         }
     }
@@ -198,6 +202,7 @@ class V2RayService : VpnService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        Logger.i("V2RayService onDestroy")
         stopVpn()
         serviceScope.cancel()
     }

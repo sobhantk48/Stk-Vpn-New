@@ -1,103 +1,34 @@
 package com.v2ray.app.utils
 
 import android.content.Context
-import android.os.Build
 import android.util.Log
 import java.io.File
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
 
 object Logger {
-
-    private const val TAG = "V2RAY_STK"
-    private const val LOG_FILE_NAME = "v2ray_stk_log.txt"
+    private const val TAG = "V2RayLogger"
+    private const val LOG_FILE_NAME = "v2ray_app.log"
+    private const val MAX_LOG_SIZE = 1024 * 1024 // 1 MB
 
     private var logFile: File? = null
-    private var isInitialized = false
-    private lateinit var context: Context
 
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault())
-
-    fun initialize(ctx: Context) {
-        context = ctx.applicationContext
-
-        try {
-            val appDir = File(context.filesDir, "logs")
-            if (!appDir.exists()) appDir.mkdirs()
-
-            logFile = File(appDir, LOG_FILE_NAME).apply {
-                if (!exists()) createNewFile()
-            }
-
-            isInitialized = true
-
-            writeLog("=== V2RAY STK LOG STARTED ===")
-            writeLog("Device: ${Build.MANUFACTURER} ${Build.MODEL}")
-            writeLog("Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
-            writeLog("Log file: ${logFile?.absolutePath}")
-            writeLog("================================")
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Logger init failed", e)
+    fun init(context: Context) {
+        logFile = File(context.filesDir, LOG_FILE_NAME)
+        if (logFile!!.exists() && logFile!!.length() > MAX_LOG_SIZE) {
+            logFile!!.delete()
         }
+        log("App started", "INFO")
     }
 
-    fun writeLog(message: String, tag: String = TAG) {
-        try {
-            if (!isInitialized || logFile == null) return
+    fun getLogFilePath(): String? = logFile?.absolutePath
 
-            val logEntry = "[${dateFormat.format(Date())}] [$tag] $message\n"
-
-            // جلوگیری از بلاک شدن UI
-            logFile?.appendText(logEntry)
-
-            Log.d(tag, message)
-
-            // چرخش فایل لاگ اگر خیلی بزرگ شد
-            if ((logFile?.length() ?: 0) > 10 * 1024 * 1024) {
-                rotateLogFile()
-            }
-
-        } catch (_: Exception) {
-            Log.d(tag, message)
-        }
-    }
-
-    fun writeError(message: String, throwable: Throwable? = null, tag: String = TAG) {
-        val errorMsg = if (throwable != null) {
-            "$message: ${throwable.message}\n${throwable.stackTraceToString()}"
-        } else message
-
-        writeLog("ERROR: $errorMsg", tag)
-    }
-
-    private fun rotateLogFile() {
-        try {
-            logFile?.let {
-                val archive = File(it.parent, "v2ray_stk_log_${System.currentTimeMillis()}.txt")
-                it.renameTo(archive)
-                it.createNewFile()
-                writeLog("Log file rotated")
-            }
-        } catch (_: Exception) {}
-    }
-
-    fun getLogFilePath(): String? {
+    fun getLogContent(): String {
         return try {
-            logFile?.absolutePath
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    fun getLogContent(): String? {
-        return try {
-            val file = logFile
-            if (file == null || !file.exists()) return null
-            file.readText()
+            logFile?.readText() ?: "No logs available."
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to read log file", e)
-            null
+            "Error reading logs: ${e.message}"
         }
     }
 
@@ -105,7 +36,34 @@ object Logger {
         try {
             logFile?.delete()
             logFile?.createNewFile()
-            writeLog("Logs cleared")
-        } catch (_: Exception) {}
+            log("Logs cleared", "INFO")
+        } catch (e: Exception) {
+            Log.e(TAG, "Clear logs failed", e)
+        }
     }
+
+    fun log(message: String, level: String = "DEBUG") {
+        try {
+            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(Date())
+            val entry = "[$timestamp] [$level] $message\n"
+            logFile?.appendText(entry)
+            Log.d(TAG, entry.trim())
+        } catch (_: Exception) {
+            // اگر فایل قابل نوشتن نبود، فقط لاگ در Logcat
+        }
+    }
+
+    fun e(message: String, throwable: Throwable? = null) {
+        val msg = if (throwable != null) {
+            "$message\n${throwable.stackTraceToString()}"
+        } else {
+            message
+        }
+        log(msg, "ERROR")
+        Log.e(TAG, message, throwable)
+    }
+
+    fun d(message: String) = log(message, "DEBUG")
+    fun i(message: String) = log(message, "INFO")
+    fun w(message: String) = log(message, "WARN")
 }

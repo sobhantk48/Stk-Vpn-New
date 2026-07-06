@@ -66,7 +66,9 @@ fun AdminLoginScreen(
                     unfocusedBorderColor = WhiteText.copy(0.3f),
                     focusedLabelColor = CyanAccent,
                     unfocusedLabelColor = WhiteText.copy(0.5f),
-                    textColor = WhiteText
+                    cursorColor = CyanAccent,
+                    focusedTextColor = WhiteText,
+                    unfocusedTextColor = WhiteText
                 ),
                 modifier = Modifier.fillMaxWidth()
             )

@@ -1,14 +1,14 @@
 package com.v2ray.app.fronting
 
 import android.content.Context
-import java.net.ServerSocket
-import java.net.Socket
+import kotlinx.coroutines.*
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetSocketAddress
-import javax.net.ssl.SSLServerSocketFactory
+import java.net.ServerSocket
+import java.net.Socket
 import javax.net.ssl.SSLSocket
-import kotlinx.coroutines.*
+import javax.net.ssl.SSLSocketFactory
 
 class ProxyServer(
     private val context: Context,
@@ -76,7 +76,9 @@ class ProxyServer(
                 return@withContext
             }
 
-            val serverSocket = SSLSocketFactory.getDefault().createSocket() as SSLSocket
+            // استفاده از SSLSocketFactory برای اتصال به سرور
+            val defaultFactory = SSLSocketFactory.getDefault()
+            val serverSocket = defaultFactory.createSocket() as SSLSocket
             serverSocket.connect(InetSocketAddress(realIp, 443), 10000)
             serverSocket.startHandshake()
 

@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.v2ray.app.data.Profile
+import com.v2ray.app.fronting.ProxyServer
 import com.v2ray.app.utils.SpeedTester
 import com.v2ray.app.utils.SniResult
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -33,6 +34,11 @@ class MainViewModel @Inject constructor(
 
     private val _pings = MutableStateFlow<Map<String, SniResult>>(emptyMap())
     val pings: StateFlow<Map<String, SniResult>> = _pings.asStateFlow()
+
+    // Domain Fronting
+    private var proxyServer: ProxyServer? = null
+    private val _frontingStatus = MutableStateFlow(false)
+    val frontingStatus: StateFlow<Boolean> = _frontingStatus.asStateFlow()
 
     init {
         loadSampleProfiles()
@@ -149,7 +155,6 @@ class MainViewModel @Inject constructor(
         _selectedId.value = profile.id
     }
 
-    // تابع جدید برای به‌روزرسانی customSni
     fun updateCustomSni(profileId: String, newSni: String) {
         _profiles.update { current ->
             current.map { profile ->
@@ -160,6 +165,26 @@ class MainViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    // ===== Domain Fronting =====
+
+    fun startFronting() {
+        viewModelScope.launch {
+            try {
+                proxyServer = ProxyServer(getApplication())
+                val started = proxyServer?.start() ?: false
+                _frontingStatus.value = started
+            } catch (e: Exception) {
+                _frontingStatus.value = false
+            }
+        }
+    }
+
+    fun stopFronting() {
+        proxyServer?.stop()
+        proxyServer = null
+        _frontingStatus.value = false
     }
 
     fun toggleConnection() {

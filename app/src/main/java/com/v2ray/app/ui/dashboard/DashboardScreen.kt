@@ -35,8 +35,8 @@ fun DashboardScreen(
     val isConnected by vm.isConnected.collectAsStateWithLifecycle()
     val pings by vm.pings.collectAsStateWithLifecycle()
 
-    // وضعیت SNI Tunnel
     var sniTunnelEnabled by remember { mutableStateOf(false) }
+    var frontingEnabled by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -91,6 +91,13 @@ fun DashboardScreen(
                             fontSize = 12.sp
                         )
                     }
+                    if (frontingEnabled) {
+                        Text(
+                            text = "🌐 Domain Fronting: ON",
+                            color = GreenAccent,
+                            fontSize = 12.sp
+                        )
+                    }
                 }
 
                 Row(
@@ -140,20 +147,16 @@ fun DashboardScreen(
                 label = "Tor",
                 onClick = { /* TODO: Enable Tor */ }
             )
-            // دکمه‌ی SNI Tunnel با قابلیت toggle
             QuickActionButton(
                 icon = Icons.Default.Tune,
                 label = if (sniTunnelEnabled) "SNI ✓" else "SNI",
                 onClick = {
                     sniTunnelEnabled = !sniTunnelEnabled
                     if (sniTunnelEnabled) {
-                        // فعال‌سازی SNI Tunnel: اگر سرور انتخاب شده باشد، customSni را تنظیم کن
                         selected?.let { profile ->
-                            val newSni = "www.google.com" // می‌توانید مقدار دلخواه تنظیم کنید
-                            vm.updateCustomSni(profile.id, newSni)
+                            vm.updateCustomSni(profile.id, "www.google.com")
                         }
                     } else {
-                        // غیرفعال‌سازی: حذف customSni
                         selected?.let { profile ->
                             vm.updateCustomSni(profile.id, "")
                         }
@@ -162,8 +165,17 @@ fun DashboardScreen(
             )
             QuickActionButton(
                 icon = Icons.Default.Verified,
-                label = "Bypass OPI",
-                onClick = { /* TODO: Enable Bypass OPI */ }
+                label = if (frontingEnabled) "Front ✓" else "Front",
+                onClick = {
+                    frontingEnabled = !frontingEnabled
+                    if (frontingEnabled) {
+                        // شروع Domain Fronting
+                        vm.startFronting()
+                    } else {
+                        // توقف Domain Fronting
+                        vm.stopFronting()
+                    }
+                }
             )
         }
 

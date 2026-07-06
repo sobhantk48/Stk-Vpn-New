@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.v2ray.app.desync.DesyncManager
 import com.v2ray.app.service.V2RayService
+import com.v2ray.app.service.V2RayService.SplitMode
 import com.v2ray.app.ui.theme.*
 import com.v2ray.app.viewmodel.MainViewModel
 import java.io.File
@@ -41,7 +42,7 @@ fun SettingsScreen(
     var killSwitchEnabled by remember { mutableStateOf(V2RayService.killSwitchEnabled) }
 
     var splitEnabled by remember { mutableStateOf(V2RayService.splitTunnelingEnabled) }
-    var splitMode by remember { mutableStateOf(V2RayService.SplitMode.INCLUDE) }
+    var splitMode by remember { mutableStateOf(SplitMode.INCLUDE) }
     val splitApps = remember { mutableStateListOf<String>().apply { addAll(V2RayService.splitApps) } }
 
     val installedApps = remember {
@@ -208,17 +209,17 @@ fun SettingsScreen(
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
                             FilterChip(
-                                selected = splitMode == V2RayService.SplitMode.INCLUDE,
+                                selected = splitMode == SplitMode.INCLUDE,
                                 onClick = {
-                                    splitMode = V2RayService.SplitMode.INCLUDE
+                                    splitMode = SplitMode.INCLUDE
                                     V2RayService.splitMode = splitMode
                                 },
                                 label = { Text("Include", fontSize = 12.sp) }
                             )
                             FilterChip(
-                                selected = splitMode == V2RayService.SplitMode.EXCLUDE,
+                                selected = splitMode == SplitMode.EXCLUDE,
                                 onClick = {
-                                    splitMode = V2RayService.SplitMode.EXCLUDE
+                                    splitMode = SplitMode.EXCLUDE
                                     V2RayService.splitMode = splitMode
                                 },
                                 label = { Text("Exclude", fontSize = 12.sp) }
@@ -226,7 +227,7 @@ fun SettingsScreen(
                         }
 
                         Text(
-                            text = if (splitMode == V2RayService.SplitMode.INCLUDE) {
+                            text = if (splitMode == SplitMode.INCLUDE) {
                                 "Only selected apps use VPN"
                             } else {
                                 "All apps except selected use VPN"

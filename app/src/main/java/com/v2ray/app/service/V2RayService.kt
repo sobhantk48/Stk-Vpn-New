@@ -23,10 +23,13 @@ class V2RayService : VpnService() {
         const val EXTRA_CONFIG = "config"
         const val EXTRA_PROFILE_ID = "profile_id"
 
-        // تنظیمات Kill Switch و Split Tunneling (همان‌ها)
         var killSwitchEnabled = false
         var splitTunnelingEnabled = false
-        enum class SplitMode { INCLUDE, EXCLUDE }
+
+        // تعریف SplitMode در Companion object
+        enum class SplitMode {
+            INCLUDE, EXCLUDE
+        }
         var splitMode = SplitMode.INCLUDE
         val splitApps = mutableSetOf<String>()
     }
@@ -63,7 +66,6 @@ class V2RayService : VpnService() {
 
         serviceScope.launch {
             try {
-                // ۱. ساخت VPN Interface
                 val builder = Builder()
                     .setSession("V2Ray VPN")
                     .setMtu(1500)
@@ -79,7 +81,6 @@ class V2RayService : VpnService() {
                         )
                     )
 
-                // ۲. Split Tunneling
                 if (splitTunnelingEnabled && splitApps.isNotEmpty()) {
                     when (splitMode) {
                         SplitMode.INCLUDE -> {
@@ -93,7 +94,6 @@ class V2RayService : VpnService() {
 
                 vpnInterface = builder.establish()
 
-                // ۳. شروع sing-box
                 val result = singBoxManager.startV2Ray(config, vpnInterface?.fd ?: -1)
                 if (result.isSuccess) {
                     isRunning = true
@@ -123,7 +123,6 @@ class V2RayService : VpnService() {
         }
     }
 
-    // ===== Kill Switch =====
     override fun protect(socket: Int): Boolean {
         return if (killSwitchEnabled && !isRunning) {
             false
@@ -132,7 +131,6 @@ class V2RayService : VpnService() {
         }
     }
 
-    // ===== Notification =====
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(

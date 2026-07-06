@@ -74,3 +74,12 @@ dependencies {
     implementation 'org.bouncycastle:bcpkix-jdk15on:1.70'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 }
+
+dependencies {
+    // ... dependencies قبلی
+
+    // Room Database
+    implementation "androidx.room:room-runtime:2.6.1"
+    kapt "androidx.room:room-compiler:2.6.1"
+    implementation "androidx.room:room-ktx:2.6.1"
+}

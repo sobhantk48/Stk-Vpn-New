@@ -3,6 +3,8 @@ package com.v2ray.app.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.v2ray.app.data.ConnectionHistory
+import com.v2ray.app.data.AppDatabase
 import com.v2ray.app.data.Profile
 import com.v2ray.app.fronting.ProxyServer
 import com.v2ray.app.utils.SpeedTester
@@ -18,6 +20,8 @@ import javax.inject.Inject
 class MainViewModel @Inject constructor(
     application: Application
 ) : AndroidViewModel(application) {
+
+    private val database = AppDatabase.getInstance(application)
 
     private val _profiles = MutableStateFlow<List<Profile>>(emptyList())
     val profiles: StateFlow<List<Profile>> = _profiles.asStateFlow()
@@ -35,14 +39,21 @@ class MainViewModel @Inject constructor(
     private val _pings = MutableStateFlow<Map<String, SniResult>>(emptyMap())
     val pings: StateFlow<Map<String, SniResult>> = _pings.asStateFlow()
 
+    private val _recentHistory = MutableStateFlow<List<ConnectionHistory>>(emptyList())
+    val recentHistory: StateFlow<List<ConnectionHistory>> = _recentHistory.asStateFlow()
+
     // Domain Fronting
     private var proxyServer: ProxyServer? = null
     private val _frontingStatus = MutableStateFlow(false)
     val frontingStatus: StateFlow<Boolean> = _frontingStatus.asStateFlow()
 
+    private var connectStartTime: Long = 0
+    private var currentProfileId: String? = null
+
     init {
         loadSampleProfiles()
         startPingTimer()
+        loadRecentHistory()
     }
 
     private fun loadSampleProfiles() {
@@ -124,6 +135,14 @@ class MainViewModel @Inject constructor(
         _pings.value = pingMap
     }
 
+    private fun loadRecentHistory() {
+        viewModelScope.launch {
+            database.historyDao().getRecentHistory().collect { history ->
+                _recentHistory.value = history
+            }
+        }
+    }
+
     // ===== توابع مدیریت پروفایل =====
 
     fun add(profile: Profile) {
@@ -167,6 +186,48 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    // ===== Recent Activity =====
+
+    suspend fun addHistory(profile: Profile, action: String, duration: Long = 0) {
+        val history = ConnectionHistory(
+            profileId = profile.id,
+            profileName = profile.name,
+            server = profile.address,
+            action = action,
+            duration = duration
+        )
+        database.historyDao().insert(history)
+    }
+
+    // ===== Connection Toggle =====
+
+    fun toggleConnection() {
+        viewModelScope.launch {
+            if (_isConnected.value) {
+                // قطع اتصال
+                val connectedAt = connectStartTime
+                val duration = if (connectedAt > 0) System.currentTimeMillis() - connectedAt else 0
+                _isConnected.value = false
+                currentProfileId?.let { profileId ->
+                    val profile = _profiles.value.find { it.id == profileId }
+                    profile?.let {
+                        addHistory(it, "DISCONNECT", duration)
+                    }
+                }
+                currentProfileId = null
+                connectStartTime = 0
+            } else {
+                // اتصال
+                _isConnected.value = true
+                connectStartTime = System.currentTimeMillis()
+                selectedProfile.value?.let { profile ->
+                    currentProfileId = profile.id
+                    addHistory(profile, "CONNECT")
+                }
+            }
+        }
+    }
+
     // ===== Domain Fronting =====
 
     fun startFronting() {
@@ -185,12 +246,6 @@ class MainViewModel @Inject constructor(
         proxyServer?.stop()
         proxyServer = null
         _frontingStatus.value = false
-    }
-
-    fun toggleConnection() {
-        viewModelScope.launch {
-            _isConnected.value = !_isConnected.value
-        }
     }
 
     fun setVpnPermissionLauncher(launcher: (android.content.Intent) -> Unit) {

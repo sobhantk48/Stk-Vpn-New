@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.v2ray.app.data.ConnectionHistory
 import com.v2ray.app.data.Profile
 import com.v2ray.app.ui.theme.*
 import com.v2ray.app.viewmodel.MainViewModel
@@ -34,6 +35,7 @@ fun DashboardScreen(
     val selected by vm.selectedProfile.collectAsStateWithLifecycle()
     val isConnected by vm.isConnected.collectAsStateWithLifecycle()
     val pings by vm.pings.collectAsStateWithLifecycle()
+    val recentHistory by vm.recentHistory.collectAsStateWithLifecycle()
 
     var sniTunnelEnabled by remember { mutableStateOf(false) }
     var frontingEnabled by remember { mutableStateOf(false) }
@@ -169,32 +171,55 @@ fun DashboardScreen(
                 onClick = {
                     frontingEnabled = !frontingEnabled
                     if (frontingEnabled) {
-                        // شروع Domain Fronting
                         vm.startFronting()
                     } else {
-                        // توقف Domain Fronting
                         vm.stopFronting()
                     }
                 }
             )
         }
 
-        // لیست سرورها با پینگ
+        // دکمه‌ی اتصال/قطع
+        Button(
+            onClick = { vm.toggleConnection() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (isConnected) RedError else GreenSuccess
+            )
+        ) {
+            Text(
+                text = if (isConnected) "🔴 Disconnect" else "🟢 Connect",
+                color = WhiteText,
+                fontSize = 16.sp
+            )
+        }
+
+        // Recent Activity
         Text(
-            text = "Servers (${profiles.size})",
-            color = WhiteText,
+            text = "📋 Recent Activity",
+            color = CyanAccent,
             fontSize = 16.sp,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        LazyColumn {
-            items(profiles, key = { it.id }) { profile ->
-                ServerItem(
-                    profile = profile,
-                    isSelected = selected?.id == profile.id,
-                    ping = pings[profile.id]?.latency ?: -1,
-                    onClick = { vm.selectProfile(profile) }
-                )
+        if (recentHistory.isEmpty()) {
+            Text(
+                text = "No activity yet",
+                color = WhiteText.copy(0.5f),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(8.dp)
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 150.dp)
+            ) {
+                items(recentHistory.take(5)) { history ->
+                    HistoryItem(history = history)
+                }
             }
         }
 
@@ -312,6 +337,46 @@ fun ServerItem(
                     text = if (ping > 0) "${ping} ms" else "--",
                     color = if (ping > 0 && ping < 100) GreenSuccess else if (ping > 0 && ping < 200) CyanAccent else WhiteText.copy(0.5f),
                     fontSize = 12.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun HistoryItem(history: ConnectionHistory) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = DarkSurface.copy(0.7f)
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "${history.profileName} - ${history.action}",
+                    color = if (history.action == "CONNECT") GreenSuccess else RedError,
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = history.getFormattedTime(),
+                    color = WhiteText.copy(0.5f),
+                    fontSize = 10.sp
+                )
+            }
+            if (history.action == "CONNECT") {
+                Text(
+                    text = history.getDurationString(),
+                    color = WhiteText.copy(0.7f),
+                    fontSize = 11.sp
                 )
             }
         }

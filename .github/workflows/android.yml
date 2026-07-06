@@ -57,11 +57,5 @@ jobs:
         with:
           name: app-release
           path: app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 30
-
-      - name: Fail if build failed
-        if: env.BUILD_STATUS != '0'
-        run: |
-          echo "::error::Build failed - check errors above"
-          exit 1

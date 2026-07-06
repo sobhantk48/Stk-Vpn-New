@@ -10,16 +10,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.v2ray.app.service.V2RayService
 import com.v2ray.app.ui.theme.*
 import com.v2ray.app.viewmodel.MainViewModel
@@ -36,31 +34,32 @@ fun SettingsScreen(
     val packageManager = context.packageManager
     val scope = rememberCoroutineScope()
 
-    // وضعیت‌های Kill Switch
+    // Theme
+    var isDarkTheme by remember { mutableStateOf(true) }
+
+    // Kill Switch
     var killSwitchEnabled by remember { mutableStateOf(V2RayService.killSwitchEnabled) }
 
-    // وضعیت‌های Split Tunneling
+    // Split Tunneling
     var splitEnabled by remember { mutableStateOf(V2RayService.splitTunnelingEnabled) }
     var splitMode by remember { mutableStateOf(V2RayService.SplitMode.INCLUDE) }
     val splitApps = remember { mutableStateListOf<String>().apply { addAll(V2RayService.splitApps) } }
 
-    // لیست اپ‌های نصب‌شده
     val installedApps = remember {
         packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
             .map { it.packageName }
             .sorted()
     }
 
-    // وضعیت‌های Desync
+    // Desync
     var fragmentEnabled by remember { mutableStateOf(DesyncManager.getInstance().isEnabled()) }
     var sniChunk by remember { mutableStateOf(DesyncManager.getInstance().getConfig().sniChunk) }
     var fragmentDelay by remember { mutableStateOf(DesyncManager.getInstance().getConfig().fragmentDelay) }
 
-    // وضعیت Backup
-    val backupStatus by vm.backupStatus.collectAsState()
+    // Backup
+    val backupStatus by vm.backupStatus.collectAsStateWithLifecycle()
     val backupFiles = remember { vm.getBackupFiles() }
 
-    // انتخاب فایل برای Restore
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -99,6 +98,39 @@ fun SettingsScreen(
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            // ===== Theme =====
+            Text(
+                text = "🎨 Theme",
+                color = CyanAccent,
+                fontSize = 18.sp,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = DarkSurface),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Dark Mode",
+                        color = WhiteText,
+                        fontSize = 14.sp
+                    )
+                    Switch(
+                        checked = isDarkTheme,
+                        onCheckedChange = { isDarkTheme = it }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             // ===== Kill Switch =====
             Text(
                 text = "🔒 Kill Switch",
@@ -307,33 +339,18 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         when (status) {
                             is com.v2ray.app.viewmodel.BackupStatus.Success -> {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = null,
-                                        tint = GreenSuccess
-                                    )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = GreenSuccess)
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        status.message,
-                                        color = GreenSuccess,
-                                        fontSize = 12.sp
-                                    )
+                                    Text(status.message, color = GreenSuccess, fontSize = 12.sp)
                                 }
                             }
                             is com.v2ray.app.viewmodel.BackupStatus.Error -> {
-                                Text(
-                                    "❌ ${status.message}",
-                                    color = RedError,
-                                    fontSize = 12.sp
-                                )
+                                Text("❌ ${status.message}", color = RedError, fontSize = 12.sp)
                             }
                         }
                     }
 
-                    // لیست فایل‌های پشتیبان موجود
                     if (backupFiles.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -346,11 +363,7 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(
-                                    text = file.name,
-                                    color = WhiteText.copy(0.6f),
-                                    fontSize = 10.sp
-                                )
+                                Text(file.name, color = WhiteText.copy(0.6f), fontSize = 10.sp)
                                 TextButton(
                                     onClick = {
                                         scope.launch {
@@ -455,11 +468,9 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // دکمه‌ی ذخیره
+            // Save button
             Button(
-                onClick = {
-                    // ذخیره تنظیمات
-                },
+                onClick = { /* Save settings */ },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
             ) {

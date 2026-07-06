@@ -14,7 +14,7 @@
 | **فاز ۲** | پیاده‌سازی SNI Tunnel | ۳ | ✅ انجام شد |
 | **فاز ۳** | پیاده‌سازی Domain Fronting | ۳ | ✅ انجام شد |
 | **فاز ۴** | اضافه کردن Desync و Fragment | ۲ | ✅ انجام شد |
-| **فاز ۵** | Kill Switch و Split Tunneling | ۳ | ❌ انجام نشده |
+| **فاز ۵** | Kill Switch و Split Tunneling | ۳ | ✅ انجام شد |
 | **فاز ۶** | Recent Activity و پشتیبان‌گیری | ۳ | ❌ انجام نشده |
 | **فاز ۷** | بهبود UI/UX و انتشار | ۴ | ❌ انجام نشده |
 
@@ -57,9 +57,9 @@
 ---
 
 ### فاز ۵: Kill Switch و Split Tunneling
-- [ ] **۵-۱**: پیاده‌سازی Kill Switch در `VpnService`
-- [ ] **۵-۲**: پیاده‌سازی Split Tunneling (انتخاب اپ‌ها)
-- [ ] **۵-۳**: اضافه کردن تنظیمات مربوطه به `SettingsScreen`
+- [x] **۵-۱**: پیاده‌سازی Kill Switch در `VpnService`
+- [x] **۵-۲**: پیاده‌سازی Split Tunneling (انتخاب اپ‌ها)
+- [x] **۵-۳**: اضافه کردن تنظیمات مربوطه به `SettingsScreen`
 
 ---
 
@@ -103,5 +103,5 @@
 
 ## 🟢 وضعیت فعلی
 - **تاریخ شروع:** ۱۴۰۵-۰۴-۱۵
-- **فاز فعال:** فاز ۵ (Kill Switch و Split Tunneling)
-- **وظیفه فعال:** ۵-۱ (پیاده‌سازی Kill Switch)
+- **فاز فعال:** فاز ۶ (Recent Activity و پشتیبان‌گیری)
+- **وظیفه فعال:** ۶-۱ (پیاده‌سازی ConnectionHistory)

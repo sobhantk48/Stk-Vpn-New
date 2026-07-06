@@ -1,126 +1,179 @@
 package com.v2ray.app.viewmodel
 
 import android.app.Application
-import android.content.Intent
-import android.net.VpnService
-import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.v2ray.app.data.ConnectionState
 import com.v2ray.app.data.Profile
-import com.v2ray.app.repository.ProfileRepository
-import com.v2ray.app.repository.SettingsRepository
-import com.v2ray.app.repository.AdminRepository
-import com.v2ray.app.service.V2RayService
-import com.v2ray.app.utils.Logger
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import com.v2ray.app.utils.SpeedTester
+import com.v2ray.app.utils.SniResult
+import com.v2ray.app.v2ray.SingBoxManager
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import javax.inject.Inject
 
-class MainViewModel(application: Application) : AndroidViewModel(application) {
+@HiltViewModel
+class MainViewModel @Inject constructor(
+    application: Application
+) : AndroidViewModel(application) {
 
-    private var vpnPermissionLauncher: ((Intent) -> Unit)? = null
+    private val _profiles = MutableStateFlow<List<Profile>>(emptyList())
+    val profiles: StateFlow<List<Profile>> = _profiles.asStateFlow()
 
-    private val _state = MutableStateFlow(ConnectionState())
-    val state: StateFlow<ConnectionState> = _state.asStateFlow()
+    private val _selectedProfile = MutableStateFlow<Profile?>(null)
+    val selectedProfile: StateFlow<Profile?> = _selectedProfile.asStateFlow()
 
-    private val _current = MutableStateFlow<Profile?>(null)
-    val current: StateFlow<Profile?> = _current.asStateFlow()
+    private val _isConnected = MutableStateFlow(false)
+    val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
 
-    val profiles: StateFlow<List<Profile>> = ProfileRepository.profiles
+    // اضافه کردن StateFlow برای پینگ‌ها
+    private val _pings = MutableStateFlow<Map<String, SniResult>>(emptyMap())
+    val pings: StateFlow<Map<String, SniResult>> = _pings.asStateFlow()
+
+    private val singBoxManager = SingBoxManager(getApplication())
 
     init {
-        Logger.writeLog("MainViewModel init")
+        loadProfiles()
+        startPingTimer()
+    }
 
-        // 🔥 فعال‌سازی ذخیره‌سازی تنظیمات
-        SettingsRepository.initialize(application)
+    private fun loadProfiles() {
+        // بارگذاری نمونه‌های تست (بعداً با Room جایگزین می‌شود)
+        _profiles.value = listOf(
+            Profile(
+                id = "1",
+                name = "Japan - Tokyo - 01",
+                server = "jp.example.com",
+                port = 443,
+                protocol = "vless",
+                uuid = "uuid-1",
+                sni = "www.google.com",
+                network = "ws",
+                path = "/",
+                security = "reality"
+            ),
+            Profile(
+                id = "2",
+                name = "Germany - Frankfurt - 02",
+                server = "de.example.com",
+                port = 443,
+                protocol = "vless",
+                uuid = "uuid-2",
+                sni = "www.google.com",
+                network = "tcp",
+                path = "/",
+                security = "reality"
+            ),
+            Profile(
+                id = "3",
+                name = "United States - New York - 03",
+                server = "us.example.com",
+                port = 443,
+                protocol = "vless",
+                uuid = "uuid-3",
+                sni = "www.google.com",
+                network = "ws",
+                path = "/",
+                security = "reality"
+            ),
+            Profile(
+                id = "4",
+                name = "Singapore - Singapore - 01",
+                server = "sg.example.com",
+                port = 443,
+                protocol = "vless",
+                uuid = "uuid-4",
+                sni = "www.google.com",
+                network = "tcp",
+                path = "/",
+                security = "reality"
+            )
+        )
+    }
 
-        // 🔥 فعال‌سازی رمز ادمین
-        AdminRepository.initialize(application)
-
-        // فعال‌سازی پروفایل‌ها
-        ProfileRepository.initialize(application)
-
+    private fun startPingTimer() {
         viewModelScope.launch {
-            ProfileRepository.profiles.collect { list ->
-                val selected = list.firstOrNull { it.selected }
-                _current.value = selected
-                Logger.writeLog("Profiles updated: ${list.size}, selected: ${selected?.name}")
-                if (list.isNotEmpty() && selected == null) {
-                    select(list.first().id)
+            while (true) {
+                updatePings()
+                kotlinx.coroutines.delay(15000) // هر ۱۵ ثانیه به‌روزرسانی
+            }
+        }
+    }
+
+    private suspend fun updatePings() {
+        val currentProfiles = _profiles.value
+        if (currentProfiles.isEmpty()) return
+
+        // ایجاد لیست هاست‌ها برای تست
+        val hosts = currentProfiles.map { profile ->
+            profile.server to (profile.port ?: 443)
+        }
+
+        // تست همزمان همه سرورها
+        val results = hosts.map { (host, port) ->
+            async {
+                SpeedTester.checkSni(host, port, 5)
+            }
+        }.awaitAll()
+
+        // ایجاد Map از هاست به نتیجه
+        val pingMap = currentProfiles.mapIndexed { index, profile ->
+            profile.id to results[index]
+        }.toMap()
+
+        _pings.value = pingMap
+    }
+
+    fun selectProfile(profile: Profile) {
+        _selectedProfile.value = profile
+    }
+
+    fun toggleConnection() {
+        viewModelScope.launch {
+            if (_isConnected.value) {
+                singBoxManager.stopV2Ray()
+                _isConnected.value = false
+            } else {
+                val selected = _selectedProfile.value ?: return@launch
+                // ساخت کانفیگ از پروفایل (ساده‌شده)
+                val config = buildConfigFromProfile(selected)
+                val result = singBoxManager.startV2Ray(config, 0) // 0 = placeholder
+                if (result.isSuccess) {
+                    _isConnected.value = true
                 }
             }
         }
+    }
 
-        viewModelScope.launch {
-            V2RayService.state.collect { newState ->
-                _state.value = newState
-                Logger.writeLog("State updated from service: ${newState.status}")
-            }
+    private fun buildConfigFromProfile(profile: Profile): String {
+        // اینجا باید کانفیگ JSON بسازید
+        // فعلاً یک کانفیگ نمونه برمی‌گردانیم
+        return """
+        {
+            "inbounds": [],
+            "outbounds": [
+                {
+                    "type": "${profile.protocol}",
+                    "server": "${profile.server}",
+                    "server_port": ${profile.port},
+                    "uuid": "${profile.uuid}",
+                    "tls": {
+                        "enabled": true,
+                        "server_name": "${profile.sni}"
+                    },
+                    "transport": {
+                        "type": "${profile.network}",
+                        "path": "${profile.path}"
+                    }
+                }
+            ]
         }
+        """.trimIndent()
     }
 
-    fun setVpnPermissionLauncher(launcher: (Intent) -> Unit) {
-        vpnPermissionLauncher = launcher
-    }
-
-    fun getSelectedProfile(): Profile? {
-        val profile = _current.value
-        Logger.writeLog("getSelectedProfile: ${profile?.name}")
-        return profile
-    }
-
-    fun connect(profile: Profile) {
-        Logger.writeLog("connect: ${profile.name}")
-
-        val context = getApplication<Application>()
-        val intent = VpnService.prepare(context)
-
-        if (intent == null) {
-            V2RayService.start(context, profile)
-        } else {
-            vpnPermissionLauncher?.invoke(intent) ?: run {
-                Toast.makeText(context, "خطا در دریافت مجوز VPN", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    fun disconnect() {
-        Logger.writeLog("disconnect")
-        V2RayService.stop(getApplication())
-    }
-
-    fun select(id: String) {
-        Logger.writeLog("select profile: $id")
-        ProfileRepository.select(id)
-        _current.value = ProfileRepository.getSelected()
-    }
-
-    fun add(profile: Profile) {
-        Logger.writeLog("add profile: ${profile.name}")
-        ProfileRepository.add(profile)
-        _current.value = ProfileRepository.getSelected()
-    }
-
-    fun update(profile: Profile) {
-        Logger.writeLog("update profile: ${profile.name}")
-        ProfileRepository.update(profile)
-        _current.value = ProfileRepository.getSelected()
-    }
-
-    fun delete(id: String) {
-        Logger.writeLog("delete profile: $id")
-        ProfileRepository.delete(id)
-        _current.value = ProfileRepository.getSelected()
-    }
-
-    fun clearError() {
-        _state.update { it.copy(errorMessage = null) }
-    }
-
-    fun showToast(message: String) {
-        Toast.makeText(getApplication(), message, Toast.LENGTH_SHORT).show()
+    fun setVpnPermissionLauncher(launcher: (android.content.Intent) -> Unit) {
+        // پیاده‌سازی برای درخواست مجوز VPN
     }
 }

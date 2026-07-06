@@ -3,322 +3,301 @@ package com.v2ray.app.ui.dashboard
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavController
-import com.v2ray.app.data.ConnectionStatus
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.v2ray.app.data.Profile
 import com.v2ray.app.ui.theme.*
 import com.v2ray.app.viewmodel.MainViewModel
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
-    nav: NavController,
-    drawer: DrawerState,
     vm: MainViewModel,
+    nav: androidx.navigation.NavController,
+    drawer: androidx.compose.material3.DrawerState,
     onAdminClick: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToLocations: () -> Unit,
     onNavigateToAbout: () -> Unit,
     onNavigateToLogs: () -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-    val state by vm.state.collectAsState()
-    val current by vm.current.collectAsState()
+    val profiles by vm.profiles.collectAsStateWithLifecycle()
+    val selected by vm.selectedProfile.collectAsStateWithLifecycle()
+    val isConnected by vm.isConnected.collectAsStateWithLifecycle()
+    val pings by vm.pings.collectAsStateWithLifecycle()
 
-    ModalNavigationDrawer(
-        drawerState = drawer,
-        drawerContent = {
-            ModalDrawerSheet(
-                drawerContainerColor = DarkSurface,
-                drawerContentColor = WhiteText
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DarkBackground)
+            .padding(16.dp)
+    ) {
+        // کارت اطلاعات اتصال
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = DarkSurface
+            ),
+            shape = MaterialTheme.shapes.medium
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
             ) {
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .padding(16.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        "V2RAY STK",
-                        color = PrimaryBlue,
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(bottom = 24.dp)
+                        text = if (isConnected) "🟢 Connected" else "🔴 Disconnected",
+                        color = if (isConnected) GreenSuccess else RedError,
+                        fontSize = 18.sp
                     )
+                    if (isConnected) {
+                        Text(
+                            text = "00:15:42", // زمان اتصال
+                            color = WhiteText.copy(0.7f),
+                            fontSize = 14.sp
+                        )
+                    }
+                }
 
-                    DrawerItem(Icons.Default.Settings, "Settings", onNavigateToSettings)
-                    DrawerItem(Icons.Default.LocationOn, "Location List", onNavigateToLocations)
-                    DrawerItem(Icons.Default.Info, "About Us", onNavigateToAbout)
-                    DrawerItem(Icons.Default.List, "View Logs", onNavigateToLogs)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (isConnected && selected != null) {
+                    Text(
+                        text = "${selected!!.name} - ${selected!!.protocol} - ${selected!!.network}",
+                        color = WhiteText,
+                        fontSize = 14.sp
+                    )
+                }
+
+                // نمایش اطلاعات ترافیک و پینگ
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Download", color = WhiteText.copy(0.5f), fontSize = 12.sp)
+                        Text("125.6 MB", color = CyanAccent, fontSize = 16.sp)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Upload", color = WhiteText.copy(0.5f), fontSize = 12.sp)
+                        Text("512 MB", color = CyanAccent, fontSize = 16.sp)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Ping", color = WhiteText.copy(0.5f), fontSize = 12.sp)
+                        val ping = selected?.let { pings[it.id]?.latency } ?: -1
+                        Text(
+                            text = if (ping > 0) "${ping} ms" else "--",
+                            color = if (ping > 0 && ping < 100) GreenSuccess else CyanAccent,
+                            fontSize = 16.sp
+                        )
+                    }
                 }
             }
         }
-    ) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("V2RAY STK", color = WhiteText) },
-                    navigationIcon = {
-                        IconButton({
-                            scope.launch {
-                                if (drawer.isClosed) drawer.open() else drawer.close()
-                            }
-                        }) {
-                            Icon(Icons.Default.Menu, tint = WhiteText, contentDescription = "Menu")
-                        }
-                    },
-                    actions = {
-                        var expanded by remember { mutableStateOf(false) }
-                        IconButton({ expanded = true }) {
-                            Icon(Icons.Default.MoreVert, tint = WhiteText, contentDescription = "Admin")
-                        }
-                        DropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Admin Panel") },
-                                onClick = {
-                                    expanded = false
-                                    onAdminClick()
-                                }
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = DarkBackground
-                    )
+
+        // دکمه‌های Quick Actions
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            QuickActionButton(
+                icon = Icons.Default.Servers,
+                label = "Servers",
+                onClick = { /* TODO: Open server list */ }
+            )
+            QuickActionButton(
+                icon = Icons.Default.Speed,
+                label = "Speed Test",
+                onClick = { /* TODO: Run speed test */ }
+            )
+            QuickActionButton(
+                icon = Icons.Default.Security,
+                label = "Tor",
+                onClick = { /* TODO: Enable Tor */ }
+            )
+            QuickActionButton(
+                icon = Icons.Default.Tune,
+                label = "SNI Tunnel",
+                onClick = { /* TODO: Enable SNI Tunnel */ }
+            )
+            QuickActionButton(
+                icon = Icons.Default.Verified,
+                label = "Bypass OPI",
+                onClick = { /* TODO: Enable Bypass OPI */ }
+            )
+        }
+
+        // لیست سرورها با پینگ
+        Text(
+            text = "Servers (${profiles.size})",
+            color = WhiteText,
+            fontSize = 16.sp,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        LazyColumn {
+            items(profiles) { profile ->
+                ServerItem(
+                    profile = profile,
+                    isSelected = selected?.id == profile.id,
+                    ping = pings[profile.id]?.latency ?: -1,
+                    onClick = { vm.selectProfile(profile) }
                 )
             }
-        ) { pad ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(DarkBackground)
-                    .padding(pad)
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceEvenly
-            ) {
+        }
 
-                ConnectionStatusSection(state)
-
-                ConnectButton(
-                    status = state.status,
-                    onClick = {
-                        when (state.status) {
-                            ConnectionStatus.IDLE,
-                            ConnectionStatus.DISCONNECTED -> current?.let { vm.connect(it) }
-
-                            ConnectionStatus.CONNECTED -> vm.disconnect()
-
-                            ConnectionStatus.ERROR -> {
-                                vm.clearError()
-                                current?.let { vm.connect(it) }
-                            }
-
-                            else -> {}
-                        }
-                    }
-                )
-
-                CurrentProfileCard(current)
-
-                Text(
-                    "v1.0.0",
-                    color = WhiteText.copy(0.5f),
-                    fontSize = 12.sp
-                )
-
-                state.errorMessage?.let {
-                    Text(
-                        it,
-                        color = RedError,
-                        fontSize = 14.sp,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
+        // دکمه‌های پایین
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            BottomActionButton(
+                icon = Icons.Default.Settings,
+                label = "Settings",
+                onClick = onNavigateToSettings
+            )
+            BottomActionButton(
+                icon = Icons.Default.LocationOn,
+                label = "Locations",
+                onClick = onNavigateToLocations
+            )
+            BottomActionButton(
+                icon = Icons.Default.Info,
+                label = "About",
+                onClick = onNavigateToAbout
+            )
+            BottomActionButton(
+                icon = Icons.Default.History,
+                label = "Logs",
+                onClick = onNavigateToLogs
+            )
         }
     }
 }
 
 @Composable
-fun DrawerItem(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, onClick: () -> Unit) {
-    Row(
+fun QuickActionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .fillMaxWidth()
             .clickable { onClick() }
-            .padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.Start
+            .padding(8.dp)
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = null,
+            contentDescription = label,
             tint = CyanAccent,
             modifier = Modifier.size(24.dp)
         )
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(text = text, color = WhiteText, fontSize = 16.sp)
-    }
-}
-
-@Composable
-fun ConnectionStatusSection(state: com.v2ray.app.data.ConnectionState) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-
-        val statusText = when (state.status) {
-            ConnectionStatus.IDLE -> "DISCONNECTED"
-            ConnectionStatus.CONNECTING -> "CONNECTING..."
-            ConnectionStatus.CONNECTED -> "CONNECTED"
-            ConnectionStatus.DISCONNECTED -> "DISCONNECTED"
-            ConnectionStatus.ERROR -> "ERROR"
-        }
-
-        val statusColor = when (state.status) {
-            ConnectionStatus.CONNECTED -> GreenAccent
-            ConnectionStatus.ERROR -> RedError
-            else -> WhiteText.copy(0.7f)
-        }
-
         Text(
-            text = statusText,
-            color = statusColor,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        if (state.status == ConnectionStatus.CONNECTED) {
-            Text(
-                text = "CONNECTED: ${state.connectedTime}",
-                color = WhiteText.copy(0.7f),
-                fontSize = 14.sp
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            SpeedItem("PING", "${state.ping} ms")
-            SpeedItem("DOWNLOAD", "${state.downloadSpeed} Mbps")
-            SpeedItem("UPLOAD", "${state.uploadSpeed} Mbps")
-        }
-    }
-}
-
-@Composable
-fun SpeedItem(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = value, color = CyanAccent, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-        Text(text = label, color = WhiteText.copy(0.6f), fontSize = 12.sp)
-    }
-}
-
-@Composable
-fun ConnectButton(status: ConnectionStatus, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth(0.7f)
-            .height(64.dp)
-            .clip(RoundedCornerShape(16.dp)),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = when (status) {
-                ConnectionStatus.CONNECTED -> GreenAccent
-                ConnectionStatus.CONNECTING -> CyanAccent
-                ConnectionStatus.ERROR -> RedError
-                else -> PrimaryBlue
-            }
-        ),
-        enabled = status != ConnectionStatus.CONNECTING
-    ) {
-        Text(
-            text = when (status) {
-                ConnectionStatus.IDLE,
-                ConnectionStatus.DISCONNECTED -> "CONNECT"
-
-                ConnectionStatus.CONNECTING -> "CONNECTING"
-
-                ConnectionStatus.CONNECTED -> "DISCONNECT"
-
-                ConnectionStatus.ERROR -> "RETRY"
-            },
-            color = DarkBackground,
-            fontWeight = FontWeight.Bold,
-            fontSize = 20.sp
+            text = label,
+            color = WhiteText.copy(0.7f),
+            fontSize = 10.sp
         )
     }
 }
 
 @Composable
-fun CurrentProfileCard(profile: Profile?) {
+fun ServerItem(
+    profile: Profile,
+    isSelected: Boolean,
+    ping: Int,
+    onClick: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 4.dp)
+            .clickable { onClick() },
         colors = CardDefaults.cardColors(
-            containerColor = DarkSurface
+            containerColor = if (isSelected) CyanAccent.copy(0.2f) else DarkSurface
         ),
-        shape = RoundedCornerShape(16.dp)
+        shape = MaterialTheme.shapes.small
     ) {
-        if (profile != null) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
                 Text(
-                    text = profile.name.ifEmpty { "No Name" },
+                    text = profile.name,
                     color = WhiteText,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-
-                val tlsText =
-                    if (profile.realityPublicKey.isNotBlank()) "Reality" else "TLS"
-
-                Text(
-                    text = "${profile.type} • $tlsText",
-                    color = CyanAccent,
                     fontSize = 14.sp
                 )
-
                 Text(
-                    text = "${profile.address}:${profile.port}",
-                    color = WhiteText.copy(0.7f),
-                    fontSize = 12.sp
-                )
-
-                Text(
-                    text = "${profile.ping} ms",
-                    color = GreenAccent,
-                    fontSize = 14.sp
+                    text = "${profile.server}:${profile.port}",
+                    color = WhiteText.copy(0.5f),
+                    fontSize = 11.sp
                 )
             }
-        } else {
-            Text(
-                text = "No profile selected",
-                color = WhiteText.copy(0.5f),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                textAlign = TextAlign.Center
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isSelected) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Selected",
+                        tint = GreenSuccess,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Text(
+                    text = if (ping > 0) "${ping} ms" else "--",
+                    color = if (ping > 0 && ping < 100) GreenSuccess else if (ping > 0 && ping < 200) CyanAccent else WhiteText.copy(0.5f),
+                    fontSize = 12.sp
+                )
+            }
         }
+    }
+}
+
+@Composable
+fun BottomActionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clickable { onClick() }
+            .padding(8.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = WhiteText.copy(0.7f),
+            modifier = Modifier.size(20.dp)
+        )
+        Text(
+            text = label,
+            color = WhiteText.copy(0.5f),
+            fontSize = 10.sp
+        )
     }
 }

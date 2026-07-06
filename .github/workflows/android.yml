@@ -1,4 +1,4 @@
-name: Android CI Ultra-Final-Debug
+name: Android CI (with APK upload)
 
 on:
   push:
@@ -30,38 +30,29 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Build Release
-        id: build
+      - name: Build Release APK
         run: |
-          echo "🚀 Building APK..."
-          ./gradlew assembleRelease --stacktrace --warning-mode=none 2>&1 | tee /tmp/build.log
-          echo "BUILD_STATUS=$?" >> $GITHUB_ENV
-          echo "::notice::Build status = $?"
+          echo "🚀 Building Release APK..."
+          ./gradlew assembleRelease --stacktrace --warning-mode=none
 
-      - name: Show APK directory content
+      - name: List APK directory
         run: |
           echo "::group::📁 APK directory content"
           ls -la app/build/outputs/apk/release/ || echo "Directory not found"
           echo "::endgroup::"
 
-      - name: Show Compilation Errors
-        run: |
-          echo "::group::🔴 Compilation Errors"
-          grep -E "^e: |error:|FAILED|Exception|Unresolved reference|cannot find symbol|not found|could not resolve|> A failure occurred" /tmp/build.log || echo "✅ No critical errors found"
-          echo "::endgroup::"
-
-      - name: Upload Full Log
-        uses: actions/upload-artifact@v4
-        with:
-          name: full-log
-          path: /tmp/build.log
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Upload APK
+      - name: Upload APK (always)
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Upload Debug APK (fallback)
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: ignore
           retention-days: 30

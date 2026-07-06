@@ -60,15 +60,12 @@ class MainViewModel @Inject constructor(
     private var activityRef: MainActivity? = null
 
     init {
-        // فقط یک پروفایل نمونه (که از لینک ساخته می‌شود) در ابتدا وجود دارد
-        // کاربر می‌تواند از پنل ادمین کانفیگ خود را اضافه کند
         loadDefaultProfiles()
         startPingTimer()
         loadRecentHistory()
     }
 
     private fun loadDefaultProfiles() {
-        // یک پروفایل نمونه با کانفیگ کاربر (می‌تواند حذف شود)
         val defaultLink = "vless://528b1e29-c2a8-474a-82d7-b3300591536e@104.17.115.177:443?path=%2F&security=tls&encryption=none&host=delicate-mud-ce14.sobhantk.workers.dev&fp=chrome&type=ws&sni=delicate-mud-ce14.sobhantk.workers.dev#CF%E5%AE%98%E6%96%B9%E4%BC%98%E9%80%899"
 
         val defaultProfile = Profile.fromLink(defaultLink) ?: Profile(
@@ -244,23 +241,23 @@ class MainViewModel @Inject constructor(
     }
 
     private fun buildConfigFromProfile(profile: Profile): String {
-        // ---------- inbound TUN (بدون port) ----------
+        // ===== inbound TUN با address به‌صورت رشته (نه آرایه) =====
         val inbound = buildJsonObject {
             put("type", "tun")
             put("tag", "tun-in")
             put("interface_name", "v2ray-tun")
-            put("address", JsonArray(listOf(JsonPrimitive("172.19.0.1/30"))))
+            put("address", "172.19.0.1/30")   // ← رشته، نه آرایه
             put("auto_route", true)
             put("strict_route", true)
             put("stack", "system")
             put("sniff", true)
         }
 
-        // ---------- outbound از پروفایل ----------
+        // ===== outbound از پروفایل =====
         val outbound = buildJsonObject {
             put("type", profile.type.lowercase())
             put("server", profile.address)
-            put("server_port", profile.port)
+            put("server_port", profile.port)   // عدد
             put("uuid", profile.uuid)
             if (profile.flow.isNotBlank()) put("flow", profile.flow)
             val sni = profile.getEffectiveSni()

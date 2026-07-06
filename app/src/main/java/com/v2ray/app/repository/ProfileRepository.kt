@@ -1,12 +1,8 @@
 package com.v2ray.app.repository
-import com.v2ray.app.utils.Logger
-import com.v2ray.app.writeError
-import com.v2ray.app.writeLog
 
 import android.content.Context
 import android.content.SharedPreferences
 import com.v2ray.app.data.Profile
-import com.v2ray.app.utils.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow

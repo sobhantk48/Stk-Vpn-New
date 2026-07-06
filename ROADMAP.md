@@ -16,7 +16,8 @@
 | **فاز ۴** | اضافه کردن Desync و Fragment | ۲ | ✅ انجام شد |
 | **فاز ۵** | Kill Switch و Split Tunneling | ۳ | ✅ انجام شد |
 | **فاز ۶** | Recent Activity و پشتیبان‌گیری | ۳ | ✅ انجام شد |
-| **فاز ۷** | بهبود UI/UX و انتشار | ۴ | ❌ انجام نشده |
+| **فاز ۷** | بهبود UI/UX و انتشار | ۴ | ✅ انجام شد |
+| **🛠️ دیباگ** | رفع خطاهای کامپایل و اجرا | ۱۲ | ✅ انجام شد |
 
 ---
 
@@ -71,25 +72,73 @@
 ---
 
 ### فاز ۷: بهبود UI/UX و انتشار
-- [ ] **۷-۱**: ارتقاء به Material 3 کامل
-- [ ] **۷-۲**: اضافه کردن حالت شب/روز
-- [ ] **۷-۳**: اضافه کردن راهنمای کاربری (Onboarding)
-- [ ] **۷-۴**: آماده‌سازی برای انتشار در GitHub Releases
+- [x] **۷-۱**: ارتقاء به Material 3 کامل
+- [x] **۷-۲**: اضافه کردن حالت شب/روز
+- [x] **۷-۳**: اضافه کردن راهنمای کاربری (Onboarding)
+- [x] **۷-۴**: آماده‌سازی برای انتشار در GitHub Releases
 
 ---
 
-## 📂 فایل‌های مرتبط با هر وظیفه
+## 🛠️ بخش دیباگ و اصلاحات انجام‌شده (به‌ترتیب)
 
-| وظیفه | فایل‌های جدید | فایل‌های موجود برای ویرایش |
-|-------|---------------|----------------------------|
-| ۱-۱ تا ۱-۲ | `ProfileParser.kt` | – |
-| ۱-۳ تا ۱-۴ | `SpeedTester.kt` | `DashboardScreen.kt`, `MainViewModel.kt` |
-| ۲-۱ تا ۲-۳ | `SniTunnelManager.kt` | `SingBoxManager.kt`, `DashboardScreen.kt` |
-| ۳-۱ تا ۳-۳ | `CertificateManager.kt`, `DohResolver.kt`, `ProxyServer.kt` | `DashboardScreen.kt`, `MainViewModel.kt`, `build.gradle` |
-| ۴-۱ تا ۴-۲ | `FragmentManager.kt`, `DesyncManager.kt` | `SettingsScreen.kt` |
-| ۵-۱ تا ۵-۳ | – | `VpnService.kt`, `SettingsScreen.kt` |
-| ۶-۱ تا ۶-۳ | `ConnectionHistory.kt`, `HistoryDao.kt`, `AppDatabase.kt`, `BackupManager.kt` | `DashboardScreen.kt`, `MainViewModel.kt`, `SettingsScreen.kt`, `build.gradle` |
-| ۷-۱ تا ۷-۴ | – | همه فایل‌های UI |
+| ردیف | مشکل | راه‌حل | وضعیت |
+|------|------|--------|--------|
+| **D-01** | خطای کامپایل `Unresolved reference: V2rayAppTheme` | ایجاد فایل `Theme.kt` با تابع `V2rayAppTheme` | ✅ رفع شد |
+| **D-02** | خطای کامپایل `Unresolved reference: rememberSaveable` | اضافه کردن import `rememberSaveable` به `LogViewerScreen.kt` | ✅ رفع شد |
+| **D-03** | خطای کامپایل `Unresolved reference: SplitMode` | انتقال `SplitMode` به فایل جداگانه `model/SplitMode.kt` | ✅ رفع شد |
+| **D-04** | خطای کامپایل `Unresolved reference: GreenSuccess` | اضافه کردن `GreenSuccess` به `Color.kt` | ✅ رفع شد |
+| **D-05** | خطای کامپایل `Unresolved reference: login` در `AdminLoginScreen` | بازنویسی کامل `AdminLoginScreen.kt` با منطق صحیح | ✅ رفع شد |
+| **D-06** | خطای کامپایل `Unresolved reference: writeLog/writeError` | جایگزینی با `Logger` مستقیم و حذف importهای اضافی | ✅ رفع شد |
+| **D-07** | خطای کامپایل `Conflicting import: Logger` | استفاده از مسیر کامل `com.v2ray.app.utils.Logger` | ✅ رفع شد |
+| **D-08** | خطای کامپایل `@Composable invocations` در `MainActivity` | حذف `try-catch` از دور `setContent` و استفاده از `remember` | ✅ رفع شد |
+| **D-09** | خطای کامپایل `OutlinedTextField colors` | اضافه کردن پارامترهای صحیح (`focusedTextColor`, `cursorColor`) | ✅ رفع شد |
+| **D-10** | خطای runtime: `config error: Listen on AnyIP but no Port(s)` | اصلاح ساختار JSON کانفیگ (تبدیل `inbounds` به آرایه) | ✅ رفع شد |
+| **D-11** | خطای runtime: `config error: failed to build inbound config` | جدا کردن `inbounds` از `outbounds` در کانفیگ | ✅ رفع شد |
+| **D-12** | کرش برنامه هنگام اتصال VPN | افزودن `try-catch` و لاگ‌گیری در `V2RayService` | ✅ رفع شد |
+| **D-13** | صفحه‌ی سفید در اولین اجرا | اضافه کردن `errorMessage` state در `MainActivity` | ✅ رفع شد |
+| **D-14** | لاگ‌ها خالی بودند | پیاده‌سازی `Logger.kt` با ذخیره‌سازی در فایل | ✅ رفع شد |
+| **D-15** | پنل ادمین فقط صفحه‌ی رمز داشت | تکمیل `AdminScreen` با لیست پروفایل‌ها و دکمه‌ی Add | ✅ رفع شد |
+| **D-16** | رمز ادمین ۱۳۱۱ جواب نمی‌داد | رمز پیش‌فرض `admin` است (`1311` اشتباه بود) | ✅ مشخص شد |
+| **D-17** | پینگ، دانلود و آپلود نمایشی بودند | پینگ با کانفیگ واقعی محاسبه می‌شود؛ دانلود/آپلود نیاز به توسعه‌ی جداگانه دارد | 🔄 نیاز به کار بیشتر |
+
+---
+
+## 🟢 وضعیت فعلی
+
+- **تاریخ شروع:** ۱۴۰۵-۰۴-۱۵  
+- **تاریخ به‌روزرسانی:** ۱۴۰۵-۰۴-۱۶  
+- **بیلد:** ✅ موفق (سبز)  
+- **اجرای اپ:** ✅ بدون کرش (با خطای کانفیگ برطرف‌شده)  
+- **VPN:** ✅ وصل می‌شود و علامت VPN بالا می‌آید  
+- **پنل ادمین:** ✅ کار می‌کند (رمز: `admin`)  
+- **مدیریت کانفیگ:** ✅ افزودن، ویرایش و حذف  
+- **لاگ‌گیری:** ✅ فعال و قابل مشاهده در Log Viewer  
+- **پینگ:** 🔄 با کانفیگ واقعی کار می‌کند  
+- **دانلود/آپلود:** ❌ نیاز به توسعه‌ی جداگانه (TrafficStats)  
+
+---
+
+## 📂 فایل‌های کلیدی اصلاح‌شده
+
+| فایل | تغییرات |
+|------|----------|
+| `MainViewModel.kt` | اصلاح ساختار کانفیگ، اضافه کردن `buildConfigFromProfile` |
+| `V2RayService.kt` | افزودن لاگ‌گیری، مدیریت خطا، اصلاح `startVpn` |
+| `AdminScreen.kt` | تکمیل پنل ادمین با لیست پروفایل‌ها و دیالوگ Add |
+| `AdminLoginScreen.kt` | اصلاح کامپایل و رفع خطای `login` |
+| `SettingsScreen.kt` | اضافه کردن تنظیمات Kill Switch و Split Tunneling |
+| `LogViewerScreen.kt` | اتصال به `Logger` و نمایش لاگ‌ها |
+| `Logger.kt` | فایل جدید برای ذخیره‌سازی لاگ‌ها |
+| `SplitMode.kt` | فایل جدید برای Enum |
+| `Color.kt` | اضافه کردن `GreenSuccess` |
+
+---
+
+## 📌 گام‌های بعدی
+
+1. **توسعه‌ی نمایش ترافیک واقعی** (دانلود/آپلود) با استفاده از `TrafficStats` یا API sing-box.
+2. **تست با کانفیگ‌های واقعی** در شرایط مختلف شبکه.
+3. **انتشار نسخه‌ی اولیه** در GitHub Releases.
 
 ---
 
@@ -98,10 +147,3 @@
 - پس از تست موفق، به `main` merge شود.
 - قبل از هر کامیت، `./gradlew build` اجرا شود.
 - برای هر وظیفه، یک کامیت جداگانه با پیام واضح.
-
----
-
-## 🟢 وضعیت فعلی
-- **تاریخ شروع:** ۱۴۰۵-۰۴-۱۵
-- **فاز فعال:** فاز ۷ (بهبود UI/UX و انتشار)
-- **وظیفه فعال:** ۷-۱ (ارتقاء به Material 3 کامل)

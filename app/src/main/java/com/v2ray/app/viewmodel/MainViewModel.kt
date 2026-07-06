@@ -33,7 +33,7 @@ class MainViewModel @Inject constructor(
     private val database = AppDatabase.getInstance(context)
     private val TAG = "MainViewModel"
 
-    // ===== کانفیگ تست معتبر با port:0 =====
+    // ===== کانفیگ تست معتبر (بدون کاما اضافی) =====
     private val TEST_CONFIG = """
 {
   "log": {"level": "warn"},
@@ -294,12 +294,8 @@ class MainViewModel @Inject constructor(
     }
 
     fun onVpnPermissionGranted() {
-        // استفاده از کانفیگ تست با port:0
-        Log.d(TAG, "Using TEST_CONFIG with port:0")
         val config = TEST_CONFIG
-
         Log.d(TAG, "Generated config: $config")
-
         val intent = Intent(context, V2RayService::class.java).apply {
             action = V2RayService.ACTION_CONNECT
             putExtra(V2RayService.EXTRA_CONFIG, config)

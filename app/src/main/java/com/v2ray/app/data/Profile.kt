@@ -17,6 +17,7 @@ data class Profile(
     val encryption: String = "none",
     val flow: String = "",
     val sni: String = "",
+    val customSni: String = "", // <-- فیلد جدید برای SNI سفارشی
     val fingerprint: String = "chrome",
     val realityPublicKey: String = "",
     val realityShortId: String = "",
@@ -25,6 +26,10 @@ data class Profile(
     val country: String = "",
     val city: String = ""
 ) : Serializable {
+
+    fun getEffectiveSni(): String {
+        return if (customSni.isNotBlank()) customSni else sni
+    }
 
     fun toV2RayConfig(): String {
         val outbound = when (type.uppercase()) {
@@ -61,14 +66,14 @@ data class Profile(
             if (realityPublicKey.isNotBlank()) {
                 put("security", "reality")
                 put("realitySettings", buildJsonObject {
-                    put("serverNames", JsonArray(listOf(JsonPrimitive(sni.ifEmpty { address }))))
+                    put("serverNames", JsonArray(listOf(JsonPrimitive(getEffectiveSni().ifEmpty { address }))))
                     put("publicKey", realityPublicKey)
                     put("shortIds", JsonArray(listOf(JsonPrimitive(realityShortId.ifEmpty { "0000000000000000" }))))
                 })
             } else {
                 put("security", "tls")
                 put("tlsSettings", buildJsonObject {
-                    put("serverName", sni.ifEmpty { address })
+                    put("serverName", getEffectiveSni().ifEmpty { address })
                     put("fingerprint", fingerprint)
                 })
             }
@@ -147,6 +152,7 @@ data class Profile(
                     port = obj["port"]?.jsonPrimitive?.content?.toIntOrNull() ?: 443,
                     uuid = obj["uuid"]?.jsonPrimitive?.content ?: "",
                     sni = obj["sni"]?.jsonPrimitive?.content ?: "",
+                    customSni = obj["customSni"]?.jsonPrimitive?.content ?: "",
                     fingerprint = obj["fingerprint"]?.jsonPrimitive?.content ?: "chrome",
                     flow = obj["flow"]?.jsonPrimitive?.content ?: "",
                     realityPublicKey = obj["pbk"]?.jsonPrimitive?.content ?: "",
@@ -175,6 +181,7 @@ data class Profile(
                 port = port,
                 uuid = uuid,
                 sni = params["sni"] ?: "",
+                customSni = params["customSni"] ?: "",
                 fingerprint = params["fp"] ?: "chrome",
                 flow = params["flow"] ?: "",
                 realityPublicKey = params["pbk"] ?: "",
@@ -193,6 +200,7 @@ data class Profile(
                 port = obj["port"]?.jsonPrimitive?.content?.toIntOrNull() ?: 443,
                 uuid = obj["id"]?.jsonPrimitive?.content ?: "",
                 sni = obj["sni"]?.jsonPrimitive?.content ?: "",
+                customSni = "",
                 encryption = obj["method"]?.jsonPrimitive?.content ?: "auto"
             )
         }
@@ -209,7 +217,8 @@ data class Profile(
                 type = "TROJAN",
                 address = address,
                 port = port,
-                uuid = password
+                uuid = password,
+                customSni = ""
             )
         }
 
@@ -229,7 +238,8 @@ data class Profile(
                 address = address,
                 port = port,
                 uuid = password,
-                encryption = method
+                encryption = method,
+                customSni = ""
             )
         }
     }

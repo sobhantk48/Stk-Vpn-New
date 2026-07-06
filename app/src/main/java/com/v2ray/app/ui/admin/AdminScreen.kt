@@ -187,6 +187,9 @@ fun AdminProfileCard(profile: Profile, onEdit: () -> Unit, onDelete: () -> Unit)
             Column {
                 Text(profile.name, color = WhiteText)
                 Text("${profile.type} • ${profile.address}:${profile.port}", color = CyanAccent, fontSize = 12.sp)
+                if (profile.customSni.isNotBlank()) {
+                    Text("SNI: ${profile.customSni}", color = GreenAccent, fontSize = 11.sp)
+                }
             }
             Row {
                 TextButton(onClick = onEdit) { Text("Edit", color = CyanAccent) }
@@ -233,6 +236,7 @@ fun EditProfileDialog(profile: Profile, onDismiss: () -> Unit, onSave: (Profile)
     var address by remember { mutableStateOf(profile.address) }
     var port by remember { mutableStateOf(profile.port.toString()) }
     var uuid by remember { mutableStateOf(profile.uuid) }
+    var customSni by remember { mutableStateOf(profile.customSni) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -263,6 +267,13 @@ fun EditProfileDialog(profile: Profile, onDismiss: () -> Unit, onSave: (Profile)
                     label = { Text("UUID / Password") },
                     modifier = Modifier.fillMaxWidth()
                 )
+                OutlinedTextField(
+                    value = customSni,
+                    onValueChange = { customSni = it },
+                    label = { Text("Custom SNI (optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Leave empty to use default SNI", color = WhiteText.copy(0.5f)) }
+                )
             }
         },
         confirmButton = {
@@ -271,7 +282,8 @@ fun EditProfileDialog(profile: Profile, onDismiss: () -> Unit, onSave: (Profile)
                     name = name,
                     address = address,
                     port = port.toIntOrNull() ?: profile.port,
-                    uuid = uuid
+                    uuid = uuid,
+                    customSni = customSni
                 ))
             }) {
                 Text("Save")
@@ -310,7 +322,6 @@ fun ChangePasswordDialog(onDismiss: () -> Unit, onSuccess: () -> Unit) {
         confirmButton = {
             TextButton(onClick = {
                 if (oldPass == "admin" && newPass.isNotBlank()) {
-                    // ذخیره رمز جدید (در اینجا فقط نمونه)
                     onSuccess()
                 }
             }) {

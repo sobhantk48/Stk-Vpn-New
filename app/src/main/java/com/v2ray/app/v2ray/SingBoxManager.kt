@@ -6,18 +6,13 @@ import go.Seq
 import libv2ray.CoreCallbackHandler
 import libv2ray.CoreController
 import libv2ray.Libv2ray
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 class SingBoxManager(private val context: Context) {
-
     companion object {
         private const val TAG = "SingBoxManager"
         private const val LOG_LEVEL = "warn"
@@ -33,6 +28,7 @@ class SingBoxManager(private val context: Context) {
     private var controller: CoreController? = null
     private var isRunning = false
     private var isInitialized = false
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private inner class CoreCallback : CoreCallbackHandler {
         override fun onEmitStatus(status: Long, message: String): Long {
@@ -67,17 +63,13 @@ class SingBoxManager(private val context: Context) {
         withContext(Dispatchers.IO) {
             try {
                 if (isInitialized) return@withContext Result.success(Unit)
-
                 Seq.setContext(context)
                 Log.d(TAG, "Seq.setContext done")
-
-                Libv2ray.initCoreEnv(workingDir, LOG_LEVEL)
+                Libvray.initCoreEnv(workingDir, LOG_LEVEL)
                 Log.d(TAG, "Libv2ray.initCoreEnv done")
-
                 val callback = CoreCallback()
                 controller = Libv2ray.newCoreController(callback)
                     ?: throw Exception("Failed to create CoreController")
-
                 isInitialized = true
                 Result.success(Unit)
             } catch (e: Exception) {
@@ -92,23 +84,17 @@ class SingBoxManager(private val context: Context) {
                 if (!isInitialized) {
                     initialize().getOrThrow()
                 }
-
                 val ctrl = controller ?: throw Exception("CoreController is null")
-
                 if (isRunning) {
                     stopV2Ray().getOrThrow()
                 }
-
                 if (vpnFd <= 0) {
                     throw Exception("Invalid VPN file descriptor: $vpnFd")
                 }
-
                 Log.d(TAG, "Starting V2Ray with fd: $vpnFd")
                 ctrl.startLoop(configJson, vpnFd)
-
                 isRunning = true
                 _coreState.update { CoreState.CONNECTED }
-
                 Log.d(TAG, "V2Ray started successfully")
                 Result.success(Unit)
             } catch (e: Exception) {
@@ -135,15 +121,27 @@ class SingBoxManager(private val context: Context) {
     fun isRunning(): Boolean = isRunning && (controller?.isRunning ?: false)
 
     fun cleanup() {
-        runBlocking {
+        scope.launch {
             try {
                 controller?.stopLoop()
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+                // ignore
+            } finally {
+                controller = null
+                isRunning = false
+                isInitialized = false
+                _coreState.update { CoreState.IDLE }
+                Log.d(TAG, "Cleanup done")
+            }
         }
-        controller = null
-        isRunning = false
-        isInitialized = false
-        _coreState.update { CoreState.IDLE }
-        Log.d(TAG, "Cleanup done")
     }
+
+    // تابع جدید برای به‌روزرسانی SNI در کانفیگ
+    suspend fun updateSni(newSni: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            // در اینجا می‌توانید کانفیگ را به‌روز کنید
+            // فعلاً فقط لاگ می‌کنیم
+            Log.d(TAG, "SNI updated to: $newSni")
+            Result.success(Unit)
+        }
 }

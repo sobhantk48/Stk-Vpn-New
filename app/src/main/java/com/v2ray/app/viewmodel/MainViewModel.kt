@@ -31,7 +31,6 @@ class MainViewModel @Inject constructor(
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
 
-    // اضافه کردن StateFlow برای پینگ‌ها
     private val _pings = MutableStateFlow<Map<String, SniResult>>(emptyMap())
     val pings: StateFlow<Map<String, SniResult>> = _pings.asStateFlow()
 
@@ -41,7 +40,6 @@ class MainViewModel @Inject constructor(
     }
 
     private fun loadSampleProfiles() {
-        // نمونه‌های تست با ساختار Profile صحیح
         _profiles.value = listOf(
             Profile(
                 id = "1",
@@ -51,6 +49,7 @@ class MainViewModel @Inject constructor(
                 port = 443,
                 uuid = "uuid-1",
                 sni = "www.google.com",
+                customSni = "",
                 flow = "xtls-rprx-vision",
                 fingerprint = "chrome"
             ),
@@ -62,6 +61,7 @@ class MainViewModel @Inject constructor(
                 port = 443,
                 uuid = "uuid-2",
                 sni = "www.google.com",
+                customSni = "",
                 flow = "xtls-rprx-vision",
                 fingerprint = "chrome"
             ),
@@ -73,6 +73,7 @@ class MainViewModel @Inject constructor(
                 port = 443,
                 uuid = "uuid-3",
                 sni = "www.google.com",
+                customSni = "",
                 flow = "xtls-rprx-vision",
                 fingerprint = "chrome"
             ),
@@ -84,6 +85,7 @@ class MainViewModel @Inject constructor(
                 port = 443,
                 uuid = "uuid-4",
                 sni = "www.google.com",
+                customSni = "",
                 flow = "xtls-rprx-vision",
                 fingerprint = "chrome"
             )
@@ -94,7 +96,7 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             while (true) {
                 updatePings()
-                kotlinx.coroutines.delay(15000) // هر ۱۵ ثانیه به‌روزرسانی
+                kotlinx.coroutines.delay(15000)
             }
         }
     }
@@ -103,14 +105,12 @@ class MainViewModel @Inject constructor(
         val currentProfiles = _profiles.value
         if (currentProfiles.isEmpty()) return
 
-        // تست همزمان همه سرورها
         val results = currentProfiles.map { profile ->
             viewModelScope.async {
                 SpeedTester.checkSni(profile.address, profile.port, 5)
             }
         }.awaitAll()
 
-        // ایجاد Map از id به نتیجه
         val pingMap = currentProfiles.mapIndexed { index, profile ->
             profile.id to results[index]
         }.toMap()
@@ -149,10 +149,22 @@ class MainViewModel @Inject constructor(
         _selectedId.value = profile.id
     }
 
+    // تابع جدید برای به‌روزرسانی customSni
+    fun updateCustomSni(profileId: String, newSni: String) {
+        _profiles.update { current ->
+            current.map { profile ->
+                if (profile.id == profileId) {
+                    profile.copy(customSni = newSni)
+                } else {
+                    profile
+                }
+            }
+        }
+    }
+
     fun toggleConnection() {
         viewModelScope.launch {
             _isConnected.value = !_isConnected.value
-            // در اینجا منطق واقعی اتصال به VPN را اضافه کنید
         }
     }
 

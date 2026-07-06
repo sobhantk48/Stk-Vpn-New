@@ -35,6 +35,9 @@ fun DashboardScreen(
     val isConnected by vm.isConnected.collectAsStateWithLifecycle()
     val pings by vm.pings.collectAsStateWithLifecycle()
 
+    // وضعیت SNI Tunnel
+    var sniTunnelEnabled by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -66,7 +69,7 @@ fun DashboardScreen(
                     )
                     if (isConnected) {
                         Text(
-                            text = "00:15:42", // زمان اتصال
+                            text = "00:15:42",
                             color = WhiteText.copy(0.7f),
                             fontSize = 14.sp
                         )
@@ -81,9 +84,15 @@ fun DashboardScreen(
                         color = WhiteText,
                         fontSize = 14.sp
                     )
+                    if (selected!!.customSni.isNotBlank()) {
+                        Text(
+                            text = "🔒 SNI: ${selected!!.customSni}",
+                            color = CyanAccent,
+                            fontSize = 12.sp
+                        )
+                    }
                 }
 
-                // نمایش اطلاعات ترافیک و پینگ
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
@@ -131,10 +140,25 @@ fun DashboardScreen(
                 label = "Tor",
                 onClick = { /* TODO: Enable Tor */ }
             )
+            // دکمه‌ی SNI Tunnel با قابلیت toggle
             QuickActionButton(
                 icon = Icons.Default.Tune,
-                label = "SNI Tunnel",
-                onClick = { /* TODO: Enable SNI Tunnel */ }
+                label = if (sniTunnelEnabled) "SNI ✓" else "SNI",
+                onClick = {
+                    sniTunnelEnabled = !sniTunnelEnabled
+                    if (sniTunnelEnabled) {
+                        // فعال‌سازی SNI Tunnel: اگر سرور انتخاب شده باشد، customSni را تنظیم کن
+                        selected?.let { profile ->
+                            val newSni = "www.google.com" // می‌توانید مقدار دلخواه تنظیم کنید
+                            vm.updateCustomSni(profile.id, newSni)
+                        }
+                    } else {
+                        // غیرفعال‌سازی: حذف customSni
+                        selected?.let { profile ->
+                            vm.updateCustomSni(profile.id, "")
+                        }
+                    }
+                }
             )
             QuickActionButton(
                 icon = Icons.Default.Verified,
@@ -254,6 +278,13 @@ fun ServerItem(
                     color = WhiteText.copy(0.5f),
                     fontSize = 11.sp
                 )
+                if (profile.customSni.isNotBlank()) {
+                    Text(
+                        text = "SNI: ${profile.customSni}",
+                        color = CyanAccent.copy(0.7f),
+                        fontSize = 10.sp
+                    )
+                }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (isSelected) {

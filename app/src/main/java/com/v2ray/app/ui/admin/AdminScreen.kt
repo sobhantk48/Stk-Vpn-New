@@ -77,7 +77,7 @@ fun AdminScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(DarkBackground)
-                .padding(padding) // فقط یک بار padding استفاده شود
+                .padding(padding)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -139,15 +139,16 @@ fun AdminScreen(
     }
 }
 
-// ====== دیالوگ‌ها (قبلاً تعریف شده‌اند، اینجا فقط برای تکمیل) ======
+// ====== دیالوگ‌ها ======
 
 @Composable
 fun AdminPasswordDialog(onDismiss: () -> Unit, onSuccess: () -> Unit) {
+    var password by remember { mutableStateOf("") }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Enter Admin Password") },
         text = {
-            var password by remember { mutableStateOf("") }
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
@@ -197,11 +198,12 @@ fun AdminProfileCard(profile: Profile, onEdit: () -> Unit, onDelete: () -> Unit)
 
 @Composable
 fun AddConfigDialog(onDismiss: () -> Unit, onAdd: (Profile) -> Unit) {
+    var link by remember { mutableStateOf("") }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add Profile") },
         text = {
-            var link by remember { mutableStateOf("") }
             Column {
                 Text("Paste share link (vless://, vmess://, ...)")
                 OutlinedTextField(
@@ -285,6 +287,7 @@ fun EditProfileDialog(profile: Profile, onDismiss: () -> Unit, onSave: (Profile)
 fun ChangePasswordDialog(onDismiss: () -> Unit, onSuccess: () -> Unit) {
     var oldPass by remember { mutableStateOf("") }
     var newPass by remember { mutableStateOf("") }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Change Admin Password") },

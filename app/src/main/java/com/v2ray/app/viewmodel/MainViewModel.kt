@@ -33,7 +33,7 @@ class MainViewModel @Inject constructor(
     private val database = AppDatabase.getInstance(context)
     private val TAG = "MainViewModel"
 
-    // ===== کانفیگ ثابت معتبر برای تست =====
+    // ===== کانفیگ تست معتبر با port:0 =====
     private val TEST_CONFIG = """
 {
   "log": {"level": "warn"},
@@ -43,6 +43,7 @@ class MainViewModel @Inject constructor(
       "tag": "tun-in",
       "interface_name": "v2ray-tun",
       "address": ["172.19.0.1/30"],
+      "port": 0,
       "auto_route": true,
       "strict_route": true,
       "stack": "system",
@@ -80,9 +81,6 @@ class MainViewModel @Inject constructor(
   }
 }
     """.trimIndent()
-
-    // اگر true باشد، از کانفیگ ثابت استفاده می‌شود
-    private var useTestConfig = true
 
     private val _profiles = MutableStateFlow<List<Profile>>(emptyList())
     val profiles: StateFlow<List<Profile>> = _profiles.asStateFlow()
@@ -296,26 +294,21 @@ class MainViewModel @Inject constructor(
     }
 
     fun onVpnPermissionGranted() {
-        // استفاده از کانفیگ ثابت برای تست
-        val config = if (useTestConfig) {
-            Log.d(TAG, "Using TEST_CONFIG")
-            TEST_CONFIG
-        } else {
-            val selected = selectedProfile.value ?: return
-            buildConfigFromProfile(selected)
-        }
+        // استفاده از کانفیگ تست با port:0
+        Log.d(TAG, "Using TEST_CONFIG with port:0")
+        val config = TEST_CONFIG
 
         Log.d(TAG, "Generated config: $config")
 
         val intent = Intent(context, V2RayService::class.java).apply {
             action = V2RayService.ACTION_CONNECT
             putExtra(V2RayService.EXTRA_CONFIG, config)
-            putExtra(V2RayService.EXTRA_PROFILE_ID, selectedProfile.value?.id ?: "test")
+            putExtra(V2RayService.EXTRA_PROFILE_ID, "test")
         }
         context.startService(intent)
         _isConnected.value = true
         connectStartTime = System.currentTimeMillis()
-        currentProfileId = selectedProfile.value?.id
+        currentProfileId = "test"
         viewModelScope.launch {
             selectedProfile.value?.let { addHistory(it, "CONNECT") }
         }
@@ -327,6 +320,7 @@ class MainViewModel @Inject constructor(
             put("tag", "tun-in")
             put("interface_name", "v2ray-tun")
             put("address", JsonArray(listOf(JsonPrimitive("172.19.0.1/30"))))
+            put("port", 0)
             put("auto_route", true)
             put("strict_route", true)
             put("stack", "system")

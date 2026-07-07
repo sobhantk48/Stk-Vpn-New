@@ -224,7 +224,7 @@ class MainViewModel @Inject constructor(
 
     fun onVpnPermissionGranted() {
         val selected = selectedProfile.value ?: return
-        val config = buildXrayConfigFromProfile(selected)
+        val config = buildSimplifiedXrayConfig(selected)
         Log.d(TAG, "Generated Xray config: $config")
         val intent = Intent(context, V2RayService::class.java).apply {
             action = V2RayService.ACTION_CONNECT
@@ -240,8 +240,8 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    private fun buildXrayConfigFromProfile(profile: Profile): String {
-        // ===== inbound SOCKS =====
+    private fun buildSimplifiedXrayConfig(profile: Profile): String {
+        // ---------- inbound SOCKS (بدون هیچ تنظیم اضافی) ----------
         val inbound = buildJsonObject {
             put("port", 1080)
             put("protocol", "socks")
@@ -251,29 +251,29 @@ class MainViewModel @Inject constructor(
             })
         }
 
-        // ===== outbound vless با ساختار صحیح =====
-        // 1. user
+        // ---------- outbound vless (با ساده‌ترین تنظیمات ممکن) ----------
+        // user
         val user = buildJsonObject {
             put("id", profile.uuid)
-            put("flow", profile.flow.ifEmpty { "" })
+            // flow را حذف می‌کنیم
             put("encryption", "none")
         }
 
-        // 2. vnext (آرایه)
+        // vnext
         val vnext = buildJsonObject {
             put("address", profile.address)
             put("port", profile.port)
             put("users", JsonArray(listOf(user)))
         }
 
-        // 3. tlsSettings
+        // tlsSettings ساده
         val tlsSettings = buildJsonObject {
             put("serverName", profile.getEffectiveSni())
-            put("fingerprint", profile.fingerprint)
-            if (profile.allowInsecure) put("allowInsecure", true)
+            // fingerprint را حذف می‌کنیم
+            put("allowInsecure", true) // برای تست
         }
 
-        // 4. wsSettings
+        // wsSettings
         val wsSettings = buildJsonObject {
             put("path", profile.path.ifEmpty { "/" })
             if (profile.host.isNotBlank()) {
@@ -283,7 +283,7 @@ class MainViewModel @Inject constructor(
             }
         }
 
-        // 5. streamSettings
+        // streamSettings
         val streamSettings = buildJsonObject {
             put("network", profile.network.ifEmpty { "tcp" })
             if (profile.sni.isNotBlank() || profile.customSni.isNotBlank()) {
@@ -295,7 +295,7 @@ class MainViewModel @Inject constructor(
             }
         }
 
-        // 6. outbound کامل
+        // outbound
         val outbound = buildJsonObject {
             put("protocol", "vless")
             put("settings", buildJsonObject {
@@ -305,29 +305,34 @@ class MainViewModel @Inject constructor(
             put("tag", "proxy")
         }
 
-        // ===== outbound direct =====
+        // ---------- outbound direct ----------
         val direct = buildJsonObject {
             put("protocol", "freedom")
             put("tag", "direct")
         }
 
-        // ===== routing =====
-        val rule = buildJsonObject {
-            put("type", "field")
-            put("inboundTag", JsonArray(listOf(JsonPrimitive("socks-in"))))
-            put("outboundTag", "proxy")
+        // ---------- routing ساده (بدون rules، فقط final) ----------
+        val routing = buildJsonObject {
+            put("domainStrategy", "IPIfNonMatch")
+            put("rules", JsonArray(listOf(
+                buildJsonObject {
+                    put("type", "field")
+                    put("ip", JsonArray(listOf(
+                        JsonPrimitive("geoip:private")
+                    )))
+                    put("outboundTag", "direct")
+                }
+            )))
         }
 
-        // ===== کل کانفیگ =====
+        // ---------- کل کانفیگ ----------
         val config = buildJsonObject {
             put("log", buildJsonObject {
-                put("loglevel", "warning")
+                put("loglevel", "debug") // برای دریافت لاگ بیشتر
             })
             put("inbounds", JsonArray(listOf(inbound)))
             put("outbounds", JsonArray(listOf(outbound, direct)))
-            put("routing", buildJsonObject {
-                put("rules", JsonArray(listOf(rule)))
-            })
+            put("routing", routing)
         }
 
         return config.toString()

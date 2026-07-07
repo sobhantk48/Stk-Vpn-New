@@ -29,6 +29,7 @@ class SingBoxManager(private val context: Context) {
 
     fun buildSingBoxConfig(profile: Profile): String {
         return try {
+            Log.d(TAG, "buildSingBoxConfig: building config for ${profile.name}")
             val templateJson = context.assets.open("singbox_config.json")
                 .bufferedReader().use { it.readText() }
             val root = JSONObject(templateJson)
@@ -98,7 +99,9 @@ class SingBoxManager(private val context: Context) {
                 }
             }
 
-            root.toString(2)
+            val result = root.toString(2)
+            Log.d(TAG, "buildSingBoxConfig: config built successfully (length=${result.length})")
+            result
         } catch (e: Exception) {
             Log.e(TAG, "buildSingBoxConfig failed", e)
             buildFallbackConfig(profile)
@@ -143,7 +146,12 @@ class SingBoxManager(private val context: Context) {
     suspend fun startV2Ray(configJson: String, vpnFd: Int): Result<Unit> =
         withContext(Dispatchers.IO) {
             try {
+                Log.d(TAG, "startV2Ray: called with vpnFd=$vpnFd")
+                Log.d(TAG, "startV2Ray: config length=${configJson.length}")
+                Log.d(TAG, "startV2Ray: config preview=${configJson.take(200)}")
+
                 if (isRunning) {
+                    Log.d(TAG, "startV2Ray: already running, stopping first")
                     stopV2Ray().getOrThrow()
                 }
 
@@ -152,14 +160,14 @@ class SingBoxManager(private val context: Context) {
                     putExtra("tun_fd", vpnFd)
                 }
                 context.startService(intent)
-                Log.d(TAG, "BoxService started with config and tun_fd: $vpnFd")
+                Log.d(TAG, "startV2Ray: BoxService started successfully")
 
                 isRunning = true
                 _coreState.update { CoreState.CONNECTED }
-                Log.d(TAG, "V2Ray started successfully")
+                Log.d(TAG, "startV2Ray: V2Ray started successfully")
                 Result.success(Unit)
             } catch (e: Exception) {
-                Log.e(TAG, "startV2Ray failed", e)
+                Log.e(TAG, "startV2Ray: failed", e)
                 _coreState.update { CoreState.ERROR }
                 Result.failure(e)
             }
@@ -171,10 +179,11 @@ class SingBoxManager(private val context: Context) {
     suspend fun stopV2Ray(): Result<Unit> =
         withContext(Dispatchers.IO) {
             try {
+                Log.d(TAG, "stopV2Ray: called")
                 context.stopService(Intent(context, BoxService::class.java))
                 isRunning = false
                 _coreState.update { CoreState.DISCONNECTED }
-                Log.d(TAG, "V2Ray stopped")
+                Log.d(TAG, "stopV2Ray: V2Ray stopped")
                 Result.success(Unit)
             } catch (e: Exception) {
                 Log.e(TAG, "stopV2Ray failed", e)

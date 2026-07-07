@@ -82,8 +82,11 @@ dependencies {
     // SnakeYAML for Clash parser
     implementation("org.yaml:snakeyaml:2.2")
 
-    // LibBox (Sing-box core) - from Maven Central (use same version as sfa)
-    implementation("io.nekohasekai:libbox:1.10.0-alpha.10")
+    // LibBox (Sing-box core) - استفاده از نسخه‌ی موجود در پروژه (از طریق AAR)
+    // این خط باید با AAR موجود در پروژه تطبیق داده شود
+    // در حال حاضر از طریق فایل‌های AAR که در app/libs قرار دارند استفاده می‌کنیم
+    implementation(files("libs/libbox.aar"))
+    implementation(files("libs/libbox-legacy.aar"))
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")

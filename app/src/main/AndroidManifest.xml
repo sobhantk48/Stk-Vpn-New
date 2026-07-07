@@ -1,6 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="com.v2ray.app">
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -12,9 +11,9 @@
     <application
         android:name=".V2RayApplication"
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@android:drawable/sym_def_app_icon"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:roundIcon="@android:drawable/sym_def_app_icon"
         android:supportsRtl="true"
         android:theme="@style/Theme.V2rayApp"
         tools:targetApi="31">
@@ -29,7 +28,7 @@
             </intent-filter>
         </activity>
 
-        <!-- ✅ سرویس VPN اصلی -->
+        <!-- سرویس VPN اصلی -->
         <service
             android:name=".bg.V2RayService"
             android:exported="false"
@@ -39,7 +38,7 @@
             </intent-filter>
         </service>
 
-        <!-- سرویس BoxService از libbox (اگر از آن استفاده می‌کنید) -->
+        <!-- سرویس BoxService از libbox (در صورت نیاز) -->
         <service
             android:name="io.nekohasekai.libbox.BoxService"
             android:exported="false" />

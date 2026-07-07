@@ -24,7 +24,9 @@ object SmartParser {
             trimmed.startsWith("hysteria2://") ||
             trimmed.startsWith("hy2://") ||
             trimmed.startsWith("tuic://") ||
-            trimmed.startsWith("wireguard://") -> {
+            trimmed.startsWith("wireguard://") ||
+            trimmed.startsWith("awg://") ||
+            trimmed.startsWith("vpn://") -> {
                 Profile.fromLink(trimmed)?.let { listOf(it) } ?: emptyList()
             }
             trimmed.contains("proxies:") || trimmed.contains("proxy-groups:") -> {
@@ -75,6 +77,7 @@ object SmartParser {
                     "hysteria2" -> "HYSTERIA2"
                     "tuic" -> "TUIC"
                     "wireguard" -> "WIREGUARD"
+                    "awg" -> "AWG"
                     else -> "VLESS"
                 }
 
@@ -135,6 +138,7 @@ object SmartParser {
                     "hysteria2" -> "HYSTERIA2"
                     "tuic" -> "TUIC"
                     "wireguard" -> "WIREGUARD"
+                    "awg" -> "AWG"
                     else -> continue
                 }
 

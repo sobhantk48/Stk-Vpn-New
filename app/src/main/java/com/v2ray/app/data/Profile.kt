@@ -5,6 +5,8 @@ import android.net.Uri
 import java.io.Serializable
 import kotlinx.serialization.Serializable as KSerializable
 import kotlinx.serialization.json.*
+import java.io.ByteArrayInputStream
+import java.util.zip.InflaterInputStream
 
 @KSerializable
 data class Profile(
@@ -53,7 +55,24 @@ data class Profile(
     val wgPeerPublicKey: String = "",
     val wgPreSharedKey: String = "",
     val wgMtu: Int = 1420,
-    val wgReserved: String = ""
+    val wgReserved: String = "",
+    // AWG fields (AmneziaWG)
+    val awgJc: Int? = null,
+    val awgJmin: Int? = null,
+    val awgJmax: Int? = null,
+    val awgS1: Int? = null,
+    val awgS2: Int? = null,
+    val awgS3: Int? = null,
+    val awgS4: Int? = null,
+    val awgH1: String? = null,
+    val awgH2: String? = null,
+    val awgH3: String? = null,
+    val awgH4: String? = null,
+    val awgI1: String? = null,
+    val awgI2: String? = null,
+    val awgI3: String? = null,
+    val awgI4: String? = null,
+    val awgI5: String? = null
 ) : Serializable {
 
     fun getEffectiveSni(): String {
@@ -69,6 +88,7 @@ data class Profile(
             "HYSTERIA2" -> buildHysteria2Json()
             "TUIC" -> buildTuicJson()
             "WIREGUARD" -> buildWireGuardJson()
+            "AWG" -> buildAwgJson()
             else -> buildVlessJson()
         }
         return outbound.toString()
@@ -232,6 +252,44 @@ data class Profile(
         }
     }
 
+    private fun buildAwgJson(): JsonObject {
+        return buildJsonObject {
+            put("protocol", "wireguard") // AWG همان WireGuard است با پارامترهای اضافی
+            put("settings", buildJsonObject {
+                put("servers", JsonArray(listOf(
+                    buildJsonObject {
+                        put("address", address)
+                        put("port", port)
+                        put("localAddress", wgLocalAddress.ifEmpty { "10.0.0.2/32" })
+                        put("privateKey", wgPrivateKey)
+                        put("peerPublicKey", wgPeerPublicKey)
+                        if (wgPreSharedKey.isNotBlank()) {
+                            put("preSharedKey", wgPreSharedKey)
+                        }
+                        put("mtu", if (wgMtu > 0 && wgMtu <= 1280) wgMtu else 1280) // AWG MTU clamp
+                        // AWG پارامترهای خاص
+                        awgJc?.let { put("jc", it) }
+                        awgJmin?.let { put("jmin", it) }
+                        awgJmax?.let { put("jmax", it) }
+                        awgS1?.let { put("s1", it) }
+                        awgS2?.let { put("s2", it) }
+                        awgS3?.let { put("s3", it) }
+                        awgS4?.let { put("s4", it) }
+                        awgH1?.takeIf { it.isNotBlank() }?.let { put("h1", it) }
+                        awgH2?.takeIf { it.isNotBlank() }?.let { put("h2", it) }
+                        awgH3?.takeIf { it.isNotBlank() }?.let { put("h3", it) }
+                        awgH4?.takeIf { it.isNotBlank() }?.let { put("h4", it) }
+                        awgI1?.takeIf { it.isNotBlank() }?.let { put("i1", it) }
+                        awgI2?.takeIf { it.isNotBlank() }?.let { put("i2", it) }
+                        awgI3?.takeIf { it.isNotBlank() }?.let { put("i3", it) }
+                        awgI4?.takeIf { it.isNotBlank() }?.let { put("i4", it) }
+                        awgI5?.takeIf { it.isNotBlank() }?.let { put("i5", it) }
+                    }
+                )))
+            })
+        }
+    }
+
     private fun buildStreamSettings(): JsonObject {
         return buildJsonObject {
             put("network", network.ifEmpty { "tcp" })
@@ -269,6 +327,8 @@ data class Profile(
                     link.startsWith("hysteria2://") || link.startsWith("hy2://") -> parseHysteria2(link)
                     link.startsWith("tuic://") -> parseTuic(link)
                     link.startsWith("wireguard://") -> parseWireGuard(link)
+                    link.startsWith("awg://") -> parseAwg(link)
+                    link.startsWith("vpn://") -> parseAmneziaLink(link)
                     else -> null
                 }
             } catch (_: Exception) { null }
@@ -494,6 +554,254 @@ data class Profile(
                 wgMtu = mtu,
                 wgReserved = reserved
             )
+        }
+
+        private fun parseAwg(link: String): Profile {
+            val uri = Uri.parse(link.replace("awg://", "http://"))
+            val host = uri.host ?: ""
+            val port = uri.port ?: 51820
+            val query = uri.query ?: ""
+            val fragment = uri.fragment ?: ""
+
+            val params = query.split("&").associate {
+                val parts = it.split("=")
+                if (parts.size == 2) parts[0] to Uri.decode(parts[1])
+                else "" to ""
+            }
+
+            val privateKey = params["privateKey"] ?: ""
+            val publicKey = params["publicKey"] ?: ""
+            val localAddress = params["address"] ?: "10.0.0.2/32"
+            val mtu = params["mtu"]?.toIntOrNull()?.let { if (it > 1280) 1280 else it } ?: 1280
+
+            // پارامترهای AWG
+            val jc = params["jc"]?.toIntOrNull()
+            val jmin = params["jmin"]?.toIntOrNull()
+            val jmax = params["jmax"]?.toIntOrNull()
+            val s1 = params["s1"]?.toIntOrNull()
+            val s2 = params["s2"]?.toIntOrNull()
+            val s3 = params["s3"]?.toIntOrNull()
+            val s4 = params["s4"]?.toIntOrNull()
+            val h1 = params["h1"]?.takeIf { it.isNotBlank() }
+            val h2 = params["h2"]?.takeIf { it.isNotBlank() }
+            val h3 = params["h3"]?.takeIf { it.isNotBlank() }
+            val h4 = params["h4"]?.takeIf { it.isNotBlank() }
+            val i1 = params["i1"]?.takeIf { it.isNotBlank() }
+            val i2 = params["i2"]?.takeIf { it.isNotBlank() }
+            val i3 = params["i3"]?.takeIf { it.isNotBlank() }
+            val i4 = params["i4"]?.takeIf { it.isNotBlank() }
+            val i5 = params["i5"]?.takeIf { it.isNotBlank() }
+
+            return Profile(
+                name = fragment.ifEmpty { host },
+                type = "AWG",
+                address = host,
+                port = port,
+                wgPrivateKey = privateKey,
+                wgPeerPublicKey = publicKey,
+                wgLocalAddress = localAddress,
+                wgMtu = mtu,
+                awgJc = jc,
+                awgJmin = jmin,
+                awgJmax = jmax,
+                awgS1 = s1,
+                awgS2 = s2,
+                awgS3 = s3,
+                awgS4 = s4,
+                awgH1 = h1,
+                awgH2 = h2,
+                awgH3 = h3,
+                awgH4 = h4,
+                awgI1 = i1,
+                awgI2 = i2,
+                awgI3 = i3,
+                awgI4 = i4,
+                awgI5 = i5
+            )
+        }
+
+        private fun parseAmneziaLink(link: String): Profile? {
+            try {
+                // حذف "vpn://"
+                val b64 = link.substringAfter("vpn://")
+                // دیکود base64url (با padding)
+                val bytes = Base64.decode(b64, Base64.URL_SAFE)
+                // تلاش برای inflate (qCompress)
+                var jsonString: String? = null
+                if (bytes.size > 4) {
+                    val claimed = ((bytes[0].toInt() and 0xFF) shl 24) or
+                            ((bytes[1].toInt() and 0xFF) shl 16) or
+                            ((bytes[2].toInt() and 0xFF) shl 8) or
+                            (bytes[3].toInt() and 0xFF)
+                    if (claimed > 0 && claimed < 4 * 1024 * 1024) {
+                        try {
+                            val inflater = InflaterInputStream(ByteArrayInputStream(bytes, 4, bytes.size - 4))
+                            jsonString = inflater.bufferedReader().use { it.readText() }
+                        } catch (_: Exception) { }
+                    }
+                }
+                if (jsonString == null) {
+                    // fallback: فرض کنیم خود bytes JSON هست
+                    jsonString = String(bytes, Charsets.UTF_8)
+                }
+                if (jsonString == null) return null
+
+                val root = Json.parseToJsonElement(jsonString).jsonObject
+                val containers = root["containers"]?.jsonArray ?: return null
+                // اولین کانتینری که AWG یا WireGuard داشته باشه رو انتخاب می‌کنیم
+                for (container in containers) {
+                    val obj = container.jsonObject
+                    val awg = obj["awg"]?.jsonObject
+                    val wg = obj["wireguard"]?.jsonObject
+                    val protoObj = awg ?: wg ?: continue
+                    val lastConfig = protoObj["last_config"]
+                    val ini: String? = when (lastConfig) {
+                        is JsonPrimitive -> lastConfig.content
+                        is JsonObject -> lastConfig["config"]?.jsonPrimitive?.content
+                        else -> null
+                    }
+                    if (ini != null && ini.contains("[Interface]") && ini.contains("[Peer]")) {
+                        // پارس INI به Profile
+                        return parseAwgIni(ini, root)
+                    }
+                }
+                return null
+            } catch (_: Exception) {
+                return null
+            }
+        }
+
+        private fun parseAwgIni(ini: String, root: JsonObject? = null): Profile? {
+            try {
+                val lines = ini.lines()
+                var address = ""
+                var privateKey = ""
+                var mtu = 1280
+                var jc: Int? = null
+                var jmin: Int? = null
+                var jmax: Int? = null
+                var s1: Int? = null
+                var s2: Int? = null
+                var s3: Int? = null
+                var s4: Int? = null
+                var h1: String? = null
+                var h2: String? = null
+                var h3: String? = null
+                var h4: String? = null
+                var i1: String? = null
+                var i2: String? = null
+                var i3: String? = null
+                var i4: String? = null
+                var i5: String? = null
+                var endpointHost = ""
+                var endpointPort = 0
+                var publicKey = ""
+                var preSharedKey = ""
+
+                var inInterface = false
+                var inPeer = false
+                for (line in lines) {
+                    val trimmed = line.trim()
+                    when {
+                        trimmed.startsWith("[Interface]") -> {
+                            inInterface = true
+                            inPeer = false
+                        }
+                        trimmed.startsWith("[Peer]") -> {
+                            inInterface = false
+                            inPeer = true
+                        }
+                        trimmed.isEmpty() || trimmed.startsWith("#") || trimmed.startsWith(";") -> continue
+                        else -> {
+                            val (key, value) = trimmed.split("=", limit = 2).map { it.trim() }
+                            when {
+                                inInterface -> {
+                                    when (key) {
+                                        "Address" -> address = value
+                                        "PrivateKey" -> privateKey = value
+                                        "MTU" -> mtu = value.toIntOrNull()?.let { if (it > 1280) 1280 else it } ?: 1280
+                                        "Jc" -> jc = value.toIntOrNull()
+                                        "Jmin" -> jmin = value.toIntOrNull()
+                                        "Jmax" -> jmax = value.toIntOrNull()
+                                        "S1" -> s1 = value.toIntOrNull()
+                                        "S2" -> s2 = value.toIntOrNull()
+                                        "S3" -> s3 = value.toIntOrNull()
+                                        "S4" -> s4 = value.toIntOrNull()
+                                        "H1" -> h1 = value
+                                        "H2" -> h2 = value
+                                        "H3" -> h3 = value
+                                        "H4" -> h4 = value
+                                        "I1" -> i1 = value
+                                        "I2" -> i2 = value
+                                        "I3" -> i3 = value
+                                        "I4" -> i4 = value
+                                        "I5" -> i5 = value
+                                    }
+                                }
+                                inPeer -> {
+                                    when (key) {
+                                        "PublicKey" -> publicKey = value
+                                        "PresharedKey" -> preSharedKey = value
+                                        "Endpoint" -> {
+                                            val parts = value.split(":")
+                                            if (parts.size == 2) {
+                                                endpointHost = parts[0]
+                                                endpointPort = parts[1].toIntOrNull() ?: 0
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (privateKey.isBlank() || publicKey.isBlank() || endpointHost.isBlank()) {
+                    return null
+                }
+
+                val name = root?.get("description")?.jsonPrimitive?.content ?: endpointHost
+                val dns1 = root?.get("dns1")?.jsonPrimitive?.content ?: ""
+                val dns2 = root?.get("dns2")?.jsonPrimitive?.content ?: ""
+
+                // جایگزینی DNS placeholders
+                if (address.contains("\$PRIMARY_DNS") && dns1.isNotBlank()) {
+                    address = address.replace("\$PRIMARY_DNS", dns1)
+                }
+                if (address.contains("\$SECONDARY_DNS") && dns2.isNotBlank()) {
+                    address = address.replace("\$SECONDARY_DNS", dns2)
+                }
+
+                return Profile(
+                    name = name,
+                    type = "AWG",
+                    address = endpointHost,
+                    port = if (endpointPort > 0) endpointPort else 51820,
+                    wgPrivateKey = privateKey,
+                    wgPeerPublicKey = publicKey,
+                    wgPreSharedKey = preSharedKey,
+                    wgLocalAddress = address,
+                    wgMtu = mtu,
+                    awgJc = jc,
+                    awgJmin = jmin,
+                    awgJmax = jmax,
+                    awgS1 = s1,
+                    awgS2 = s2,
+                    awgS3 = s3,
+                    awgS4 = s4,
+                    awgH1 = h1,
+                    awgH2 = h2,
+                    awgH3 = h3,
+                    awgH4 = h4,
+                    awgI1 = i1,
+                    awgI2 = i2,
+                    awgI3 = i3,
+                    awgI4 = i4,
+                    awgI5 = i5
+                )
+            } catch (_: Exception) {
+                return null
+            }
         }
     }
 }

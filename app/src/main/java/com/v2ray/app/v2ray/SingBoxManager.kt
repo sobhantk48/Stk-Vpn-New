@@ -74,14 +74,17 @@ class SingBoxManager(private val context: Context) {
         }
     }
 
-    suspend fun initialize(workingDir: String = context.filesDir.absolutePath): Result<Unit> =
+    suspend fun initialize(workingDir: String = context.cacheDir.absolutePath): Result<Unit> =
         withContext(Dispatchers.IO) {
             try {
                 if (isInitialized) return@withContext Result.success(Unit)
-                Seq.setContext(context)
+                // ۱. تنظیم Context (با ApplicationContext)
+                Seq.setContext(context.applicationContext)
                 Log.d(TAG, "Seq.setContext done")
+                // ۲. مقداردهی اولیه محیط
                 Libv2ray.initCoreEnv(workingDir, LOG_LEVEL)
-                Log.d(TAG, "Libv2ray.initCoreEnv done")
+                Log.d(TAG, "Libv2ray.initCoreEnv done (dir: $workingDir)")
+                // ۳. ایجاد CoreController
                 val callback = CoreCallback()
                 controller = Libv2ray.newCoreController(callback)
                     ?: throw Exception("Failed to create CoreController")
@@ -107,7 +110,9 @@ class SingBoxManager(private val context: Context) {
                     throw Exception("Invalid VPN file descriptor: $vpnFd")
                 }
                 Log.d(TAG, "Starting V2Ray with fd: $vpnFd")
+                Log.d(TAG, "Config: $configJson")
                 try {
+                    // اجرای startLoop در ترد جداگانه (با استفاده از runBlocking برای اطمینان از اجرای کامل)
                     ctrl.startLoop(configJson, vpnFd)
                 } catch (e: Exception) {
                     Log.e(TAG, "startLoop failed", e)

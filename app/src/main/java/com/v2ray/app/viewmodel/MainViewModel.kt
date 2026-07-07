@@ -224,7 +224,7 @@ class MainViewModel @Inject constructor(
 
     fun onVpnPermissionGranted() {
         val selected = selectedProfile.value ?: return
-        val config = buildSimplifiedXrayConfig(selected)
+        val config = buildDebugXrayConfig(selected)
         Log.d(TAG, "Generated Xray config: $config")
         val intent = Intent(context, V2RayService::class.java).apply {
             action = V2RayService.ACTION_CONNECT
@@ -240,8 +240,13 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    private fun buildSimplifiedXrayConfig(profile: Profile): String {
-        // ---------- inbound SOCKS (بدون هیچ تنظیم اضافی) ----------
+    private fun buildDebugXrayConfig(profile: Profile): String {
+        // مسیر فایل‌های لاگ
+        val logDir = context.filesDir.absolutePath
+        val accessLog = "$logDir/access.log"
+        val errorLog = "$logDir/error.log"
+
+        // inbound SOCKS
         val inbound = buildJsonObject {
             put("port", 1080)
             put("protocol", "socks")
@@ -251,11 +256,9 @@ class MainViewModel @Inject constructor(
             })
         }
 
-        // ---------- outbound vless (با ساده‌ترین تنظیمات ممکن) ----------
         // user
         val user = buildJsonObject {
             put("id", profile.uuid)
-            // flow را حذف می‌کنیم
             put("encryption", "none")
         }
 
@@ -266,11 +269,10 @@ class MainViewModel @Inject constructor(
             put("users", JsonArray(listOf(user)))
         }
 
-        // tlsSettings ساده
+        // tlsSettings
         val tlsSettings = buildJsonObject {
             put("serverName", profile.getEffectiveSni())
-            // fingerprint را حذف می‌کنیم
-            put("allowInsecure", true) // برای تست
+            put("allowInsecure", true)
         }
 
         // wsSettings
@@ -305,34 +307,21 @@ class MainViewModel @Inject constructor(
             put("tag", "proxy")
         }
 
-        // ---------- outbound direct ----------
+        // direct
         val direct = buildJsonObject {
             put("protocol", "freedom")
             put("tag", "direct")
         }
 
-        // ---------- routing ساده (بدون rules، فقط final) ----------
-        val routing = buildJsonObject {
-            put("domainStrategy", "IPIfNonMatch")
-            put("rules", JsonArray(listOf(
-                buildJsonObject {
-                    put("type", "field")
-                    put("ip", JsonArray(listOf(
-                        JsonPrimitive("geoip:private")
-                    )))
-                    put("outboundTag", "direct")
-                }
-            )))
-        }
-
-        // ---------- کل کانفیگ ----------
+        // کل کانفیگ با مسیر لاگ
         val config = buildJsonObject {
             put("log", buildJsonObject {
-                put("loglevel", "debug") // برای دریافت لاگ بیشتر
+                put("loglevel", "debug")
+                put("access", accessLog)
+                put("error", errorLog)
             })
             put("inbounds", JsonArray(listOf(inbound)))
             put("outbounds", JsonArray(listOf(outbound, direct)))
-            put("routing", routing)
         }
 
         return config.toString()

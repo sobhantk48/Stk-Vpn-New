@@ -136,7 +136,6 @@ class V2RayService : VpnService() {
                     updateNotification("❌ Error: ${e.message}", false)
                 }
             } finally {
-                // بستن vpnInterface در صورت خطا
                 if (!isRunning) {
                     try {
                         vpnInterface?.close()
@@ -168,7 +167,6 @@ class V2RayService : VpnService() {
     }
 
     override fun protect(socket: Int): Boolean {
-        // در حالت Debug اجازه‌ی همه‌ی سوکت‌ها را بده
         if (BuildConfig.DEBUG) return true
         return if (killSwitchEnabled && !isRunning) {
             false

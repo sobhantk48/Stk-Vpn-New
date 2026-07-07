@@ -241,9 +241,9 @@ class MainViewModel @Inject constructor(
     }
 
     private fun buildXrayConfigFromProfile(profile: Profile): String {
-        // ---------- inbound SOCKS ----------
+        // ===== inbound SOCKS =====
         val inbound = buildJsonObject {
-            put("port", 1080) // عدد
+            put("port", 1080)
             put("protocol", "socks")
             put("settings", buildJsonObject {
                 put("auth", "noauth")
@@ -251,42 +251,51 @@ class MainViewModel @Inject constructor(
             })
         }
 
-        // ---------- outbound vless ----------
+        // ===== outbound vless با ساختار صحیح =====
+        // 1. user
         val user = buildJsonObject {
             put("id", profile.uuid)
             put("flow", profile.flow.ifEmpty { "" })
             put("encryption", "none")
         }
 
+        // 2. vnext (آرایه)
         val vnext = buildJsonObject {
             put("address", profile.address)
-            put("port", profile.port) // عدد
+            put("port", profile.port)
             put("users", JsonArray(listOf(user)))
         }
 
-        // streamSettings
+        // 3. tlsSettings
+        val tlsSettings = buildJsonObject {
+            put("serverName", profile.getEffectiveSni())
+            put("fingerprint", profile.fingerprint)
+            if (profile.allowInsecure) put("allowInsecure", true)
+        }
+
+        // 4. wsSettings
+        val wsSettings = buildJsonObject {
+            put("path", profile.path.ifEmpty { "/" })
+            if (profile.host.isNotBlank()) {
+                put("headers", buildJsonObject {
+                    put("Host", profile.host)
+                })
+            }
+        }
+
+        // 5. streamSettings
         val streamSettings = buildJsonObject {
             put("network", profile.network.ifEmpty { "tcp" })
             if (profile.sni.isNotBlank() || profile.customSni.isNotBlank()) {
                 put("security", "tls")
-                put("tlsSettings", buildJsonObject {
-                    put("serverName", profile.getEffectiveSni())
-                    put("fingerprint", profile.fingerprint)
-                    if (profile.allowInsecure) put("allowInsecure", true)
-                })
+                put("tlsSettings", tlsSettings)
             }
             if (profile.network == "ws") {
-                put("wsSettings", buildJsonObject {
-                    put("path", profile.path.ifEmpty { "/" })
-                    if (profile.host.isNotBlank()) {
-                        put("headers", buildJsonObject {
-                            put("Host", profile.host)
-                        })
-                    }
-                })
+                put("wsSettings", wsSettings)
             }
         }
 
+        // 6. outbound کامل
         val outbound = buildJsonObject {
             put("protocol", "vless")
             put("settings", buildJsonObject {
@@ -296,18 +305,20 @@ class MainViewModel @Inject constructor(
             put("tag", "proxy")
         }
 
+        // ===== outbound direct =====
         val direct = buildJsonObject {
             put("protocol", "freedom")
             put("tag", "direct")
         }
 
-        // routing
+        // ===== routing =====
         val rule = buildJsonObject {
             put("type", "field")
             put("inboundTag", JsonArray(listOf(JsonPrimitive("socks-in"))))
             put("outboundTag", "proxy")
         }
 
+        // ===== کل کانفیگ =====
         val config = buildJsonObject {
             put("log", buildJsonObject {
                 put("loglevel", "warning")

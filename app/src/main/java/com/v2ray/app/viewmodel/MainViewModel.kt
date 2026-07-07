@@ -21,7 +21,6 @@ import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
 
-// ===== Backup Status =====
 sealed class BackupStatus {
     data class Success(val message: String) : BackupStatus()
     data class Error(val message: String) : BackupStatus()
@@ -74,16 +73,10 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // ================== Profile Management ==================
-
     fun selectProfile(profile: Profile) {
         viewModelScope.launch {
             profileRepository.setSelected(profile.id)
-            _selectedProfile.value = profile
-            _selectedId.value = profile.id
-            _profiles.value = _profiles.value.map {
-                it.copy(selected = it.id == profile.id)
-            }
+            loadProfiles()
         }
     }
 
@@ -110,7 +103,6 @@ class MainViewModel @Inject constructor(
     fun toggleConnection() {
         val activity = activity ?: return
         val profile = _selectedProfile.value ?: return
-
         if (_isConnected.value) {
             disconnect()
         } else {
@@ -146,34 +138,19 @@ class MainViewModel @Inject constructor(
     fun updateCustomSni(profileId: String, sni: String) {
         viewModelScope.launch {
             profileRepository.updateCustomSni(profileId, sni)
-            _profiles.value = _profiles.value.map {
-                if (it.id == profileId) it.copy(customSni = sni) else it
-            }
-            if (_selectedProfile.value?.id == profileId) {
-                _selectedProfile.value = _selectedProfile.value?.copy(customSni = sni)
-                _selectedId.value = profileId
-            }
+            loadProfiles()
         }
     }
 
-    // ================== Domain Fronting ==================
-
+    // Domain Fronting
     fun startFronting() {
         val profile = _selectedProfile.value ?: return
         if (_frontingEnabled.value) return
-
         val frontingDomain = "www.google.com"
         viewModelScope.launch {
             profileRepository.updateFrontingDomain(profile.id, frontingDomain)
-            _profiles.value = _profiles.value.map {
-                if (it.id == profile.id) {
-                    it.copy(frontingDomain = frontingDomain)
-                } else it
-            }
-            _selectedProfile.value = _selectedProfile.value?.copy(frontingDomain = frontingDomain)
-            _selectedId.value = profile.id
             _frontingEnabled.value = true
-
+            loadProfiles()
             if (_isConnected.value) {
                 disconnect()
                 val activity = activity ?: return@launch
@@ -185,18 +162,10 @@ class MainViewModel @Inject constructor(
     fun stopFronting() {
         val profile = _selectedProfile.value ?: return
         if (!_frontingEnabled.value) return
-
         viewModelScope.launch {
             profileRepository.updateFrontingDomain(profile.id, "")
-            _profiles.value = _profiles.value.map {
-                if (it.id == profile.id) {
-                    it.copy(frontingDomain = "")
-                } else it
-            }
-            _selectedProfile.value = _selectedProfile.value?.copy(frontingDomain = "")
-            _selectedId.value = profile.id
             _frontingEnabled.value = false
-
+            loadProfiles()
             if (_isConnected.value) {
                 disconnect()
                 val activity = activity ?: return@launch
@@ -211,7 +180,7 @@ class MainViewModel @Inject constructor(
             activity.requestVpnPermission()
             return
         }
-        currentProfile = profile.copy(frontingDomain = frontingDomain)
+        currentProfile = profile
         activity.startVpnService(currentProfile!!)
         _isConnected.value = true
     }
@@ -227,8 +196,7 @@ class MainViewModel @Inject constructor(
     fun isFrontingEnabled(): Boolean = _frontingEnabled.value
     fun getCurrentProfile(): Profile? = currentProfile
 
-    // ================== Backup & Restore ==================
-
+    // Backup & Restore
     fun getBackupFiles(): List<File> {
         val dir = getApplication<Application>().filesDir
         return dir.listFiles { file ->

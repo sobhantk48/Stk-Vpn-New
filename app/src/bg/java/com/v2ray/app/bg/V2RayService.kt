@@ -115,7 +115,6 @@ class V2RayService : VpnService() {
                         )
                     )
 
-                // Split Tunneling
                 if (splitTunnelingEnabled && splitApps.isNotEmpty()) {
                     Logger.d("Split Tunneling enabled with ${splitApps.size} apps")
                     when (splitMode) {
@@ -146,7 +145,8 @@ class V2RayService : VpnService() {
                 }
 
                 Logger.i("Starting sing-box with config length: ${finalConfig.length}")
-                val result = singBoxManager.startV2RayWithConfig(finalConfig, fd)
+                // استفاده از متد startV2Ray جدید
+                val result = singBoxManager.startV2Ray(finalConfig, fd)
                 if (result.isSuccess) {
                     isRunning = true
                     binder.setStatus("Connected")
@@ -200,7 +200,6 @@ class V2RayService : VpnService() {
         }
     }
 
-    // محافظت از سوکت‌ها (Kill Switch)
     override fun protect(socket: Int): Boolean {
         if (killSwitchEnabled && !isRunning) {
             return false

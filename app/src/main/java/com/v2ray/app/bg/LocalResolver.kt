@@ -21,6 +21,9 @@ object LocalResolver : LocalDNSTransport {
 
     override fun raw(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
 
+    // اضافه کردن متد networkHandle با مقدار پیش‌فرض 0
+    override fun networkHandle(): Long = 0L
+
     @RequiresApi(Build.VERSION_CODES.Q)
     override fun exchange(ctx: ExchangeContext, message: ByteArray) {
         runBlocking {

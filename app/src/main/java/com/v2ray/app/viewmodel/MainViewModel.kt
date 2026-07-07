@@ -241,23 +241,19 @@ class MainViewModel @Inject constructor(
     }
 
     private fun buildConfigFromProfile(profile: Profile): String {
-        // ===== inbound TUN با address به‌صورت رشته (نه آرایه) =====
+        // ===== inbound SOCKS (به جای TUN) =====
         val inbound = buildJsonObject {
-            put("type", "tun")
-            put("tag", "tun-in")
-            put("interface_name", "v2ray-tun")
-            put("address", "172.19.0.1/30")   // ← رشته، نه آرایه
-            put("auto_route", true)
-            put("strict_route", true)
-            put("stack", "system")
-            put("sniff", true)
+            put("type", "socks")
+            put("tag", "socks-in")
+            put("listen", "127.0.0.1")
+            put("listen_port", 1080)
         }
 
         // ===== outbound از پروفایل =====
         val outbound = buildJsonObject {
             put("type", profile.type.lowercase())
             put("server", profile.address)
-            put("server_port", profile.port)   // عدد
+            put("server_port", profile.port)
             put("uuid", profile.uuid)
             if (profile.flow.isNotBlank()) put("flow", profile.flow)
             val sni = profile.getEffectiveSni()

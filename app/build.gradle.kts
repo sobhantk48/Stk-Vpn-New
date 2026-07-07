@@ -82,8 +82,8 @@ dependencies {
     // SnakeYAML for Clash parser
     implementation("org.yaml:snakeyaml:2.2")
 
-    // ✅ Libbox از Maven Central (نسخه‌ی دقیق)
-    implementation("io.nekohasekai:libbox:1.10.0-alpha.10")
+    // ✅ Libbox از مخزن رسمی (با نسخه‌ی دقیق)
+    implementation("io.nekohasekai:libbox:1.10.0")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")

@@ -151,3 +151,51 @@
 | ۱۲ | **قانون بازخورد** | پس از هر تغییر، منتظر تأیید کاربر برای ادامه باشم. |
 | ۱۳ | **قانون کدنویسی حرفه‌ای** | تمام کدها باید خط‌به‌خط بررسی شوند، بدون خطای کامپایل، با importهای کامل و ساختار صحیح، مانند یک دولوپر انسانی دقیق ارائه شوند. |
 
+
+## فاز ۴: پروتکل‌های جدید (Hysteria2, WireGuard, TUIC, AWG) ✅ کامل
+
+### ۴-۱: Hysteria2
+- **وضعیت:** ✅ کامل
+- **تغییرات:**
+  - اضافه شدن `hysteriaProtocolVersion`, `hysteriaAuthPayload`, `hysteriaObfs`, `hysteriaSni`, `hysteriaAllowInsecure`, `hysteriaUploadMbps`, `hysteriaDownloadMbps` به `Profile.kt`
+  - اضافه شدن تابع `parseHysteria2` برای پارس لینک‌های `hysteria2://` و `hy2://`
+  - به‌روزرسانی `SmartParser.kt` برای تشخیص لینک‌های Hysteria2
+  - اضافه شدن `buildHysteria2Json` برای ساخت کانفیگ Sing-box
+- **خطاها:** هیچ خطایی ثبت نشد
+
+### ۴-۲: WireGuard
+- **وضعیت:** ✅ کامل
+- **تغییرات:**
+  - اضافه شدن `wgLocalAddress`, `wgPrivateKey`, `wgPeerPublicKey`, `wgPreSharedKey`, `wgMtu`, `wgReserved` به `Profile.kt`
+  - اضافه شدن `parseWireGuard` برای پارس لینک‌های `wireguard://`
+  - به‌روزرسانی `SmartParser.kt` برای تشخیص لینک‌های WireGuard
+  - اضافه شدن `buildWireGuardJson` برای ساخت کانفیگ Sing-box
+  - تست موفق با لینک نمونه
+- **خطاها:** هیچ خطایی ثبت نشد
+
+### ۴-۳: TUIC v5
+- **وضعیت:** ✅ کامل
+- **تغییرات:**
+  - اضافه شدن `tuicToken`, `tuicUuid`, `tuicCongestionController`, `tuicUdpRelayMode`, `tuicReduceRTT`, `tuicDisableSNI` به `Profile.kt`
+  - اضافه شدن `parseTuic` برای پارس لینک‌های `tuic://`
+  - به‌روزرسانی `SmartParser.kt` برای تشخیص لینک‌های TUIC
+  - اضافه شدن `buildTuicJson` برای ساخت کانفیگ Sing-box
+- **خطاها:** هیچ خطایی ثبت نشد
+
+### ۴-۴: AWG (AmneziaWG)
+- **وضعیت:** ✅ کامل
+- **تغییرات:**
+  - اضافه شدن پارامترهای AWG (`awgJc`, `awgJmin`, `awgJmax`, `awgS1`..`awgS4`, `awgH1`..`awgH4`, `awgI1`..`awgI5`) به `Profile.kt`
+  - اضافه شدن `parseAwg` برای پارس لینک‌های `awg://`
+  - اضافه شدن `parseAmneziaLink` برای پارس لینک‌های `vpn://` (Amnezia VPN)
+  - اضافه شدن `parseAwgIni` برای پارس فایل‌های INI AWG
+  - به‌روزرسانی `SmartParser.kt` برای تشخیص لینک‌های AWG
+  - اضافه شدن `buildAwgJson` برای ساخت کانفیگ Sing-box با پارامترهای AWG
+- **خطاها:** هیچ خطایی ثبت نشد
+
+### جمع‌بندی فاز ۴:
+- **وضعیت کلی:** ✅ کامل
+- **پروتکل‌های پشتیبانی‌شده:** VLESS, VMess, Trojan, Shadowsocks, Hysteria2, WireGuard, TUIC, AWG
+- **بیلد:** سبز ✅
+- **تست‌های دستی:** WireGuard و AWG تست شدند و کار می‌کنند.
+

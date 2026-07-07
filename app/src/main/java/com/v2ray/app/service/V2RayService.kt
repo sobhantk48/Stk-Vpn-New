@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.v2ray.app.MainActivity
 import com.v2ray.app.R
@@ -42,10 +43,12 @@ class V2RayService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
-        // تنظیم UncaughtExceptionHandler برای ثبت کرش‌ها
+        // تنظیم UncaughtExceptionHandler
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            Logger.e("Uncaught exception in thread ${thread.name}", throwable)
+            val msg = "Uncaught exception in thread ${thread.name}: ${throwable.message}"
+            Log.e(TAG, msg, throwable)
+            Logger.e(msg, throwable)
             defaultHandler?.uncaughtException(thread, throwable)
         }
         Logger.i("V2RayService onCreate")
@@ -122,24 +125,36 @@ class V2RayService : VpnService() {
                 val result = singBoxManager.startV2Ray(config, fd)
                 if (result.isSuccess) {
                     isRunning = true
-                    // اجرای Notification در ترد اصلی
-                    mainHandler.post {
-                        updateNotification("🟢 Connected", true)
+                    // Try-catch مخصوص Notification
+                    try {
+                        mainHandler.post {
+                            updateNotification("🟢 Connected", true)
+                        }
+                    } catch (e: Exception) {
+                        Logger.e("Error updating notification", e)
                     }
                     Logger.i("V2Ray started successfully")
                 } else {
                     val error = result.exceptionOrNull()?.message ?: "Unknown error"
                     Logger.e("V2Ray start failed: $error", result.exceptionOrNull())
-                    mainHandler.post {
-                        updateNotification("❌ Connection Failed: $error", false)
+                    try {
+                        mainHandler.post {
+                            updateNotification("❌ Connection Failed: $error", false)
+                        }
+                    } catch (e: Exception) {
+                        Logger.e("Error updating notification", e)
                     }
                     vpnInterface?.close()
                     vpnInterface = null
                 }
             } catch (e: Exception) {
                 Logger.e("startVpn error", e)
-                mainHandler.post {
-                    updateNotification("❌ Error: ${e.message}", false)
+                try {
+                    mainHandler.post {
+                        updateNotification("❌ Error: ${e.message}", false)
+                    }
+                } catch (ex: Exception) {
+                    Logger.e("Error updating notification", ex)
                 }
                 try {
                     vpnInterface?.close()
@@ -158,8 +173,12 @@ class V2RayService : VpnService() {
                 vpnInterface?.close()
                 vpnInterface = null
                 isRunning = false
-                mainHandler.post {
-                    updateNotification("⏹️ Disconnected", false)
+                try {
+                    mainHandler.post {
+                        updateNotification("⏹️ Disconnected", false)
+                    }
+                } catch (e: Exception) {
+                    Logger.e("Error updating notification", e)
                 }
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -179,56 +198,74 @@ class V2RayService : VpnService() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "V2Ray VPN",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "V2Ray VPN Service"
-                setShowBadge(false)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    "V2Ray VPN",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = "V2Ray VPN Service"
+                    setShowBadge(false)
+                }
+                val manager = getSystemService(NotificationManager::class.java)
+                manager?.createNotificationChannel(channel)
             }
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
+        } catch (e: Exception) {
+            Log.e(TAG, "createNotificationChannel error", e)
+            Logger.e("createNotificationChannel error", e)
         }
     }
 
     private fun createNotification(text: String, isConnected: Boolean): Notification {
-        val intent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val disconnectIntent = Intent(this, V2RayService::class.java).apply {
-            action = ACTION_DISCONNECT
-        }
-        val disconnectPendingIntent = PendingIntent.getService(
-            this, 0, disconnectIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(if (isConnected) "🟢 VPN Connected" else "🔴 VPN Disconnected")
-            .setContentText(text)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentIntent(pendingIntent)
-            .addAction(
-                android.R.drawable.ic_menu_close_clear_cancel,
-                "Disconnect",
-                disconnectPendingIntent
+        try {
+            val intent = Intent(this, MainActivity::class.java)
+            val pendingIntent = PendingIntent.getActivity(
+                this, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setOngoing(isConnected)
-            .build()
+
+            val disconnectIntent = Intent(this, V2RayService::class.java).apply {
+                action = ACTION_DISCONNECT
+            }
+            val disconnectPendingIntent = PendingIntent.getService(
+                this, 0, disconnectIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            return NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle(if (isConnected) "🟢 VPN Connected" else "🔴 VPN Disconnected")
+                .setContentText(text)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentIntent(pendingIntent)
+                .addAction(
+                    android.R.drawable.ic_menu_close_clear_cancel,
+                    "Disconnect",
+                    disconnectPendingIntent
+                )
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setOngoing(isConnected)
+                .build()
+        } catch (e: Exception) {
+            Log.e(TAG, "createNotification error", e)
+            Logger.e("createNotification error", e)
+            // Fallback: یک Notification ساده بدون Action
+            return NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle(if (isConnected) "VPN Connected" else "VPN Disconnected")
+                .setContentText(text)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .build()
+        }
     }
 
     private fun updateNotification(text: String, isConnected: Boolean) {
         try {
             val notification = createNotification(text, isConnected)
             val manager = getSystemService(NotificationManager::class.java)
-            manager.notify(NOTIFICATION_ID, notification)
+            manager?.notify(NOTIFICATION_ID, notification)
         } catch (e: Exception) {
+            Log.e(TAG, "updateNotification error", e)
             Logger.e("updateNotification error", e)
         }
     }

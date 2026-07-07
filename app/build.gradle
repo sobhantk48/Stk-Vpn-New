@@ -96,3 +96,19 @@ dependencies {
 
     implementation "androidx.datastore:datastore-preferences:1.1.0"
 }
+
+android {
+    sourceSets {
+        main {
+            java.srcDirs += 'src/bg/java'
+        }
+    }
+}
+
+android {
+    sourceSets {
+        main {
+            java.srcDirs += 'src/bg/java'
+        }
+    }
+}

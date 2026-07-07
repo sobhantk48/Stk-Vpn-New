@@ -240,11 +240,8 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    /**
-     * تولید کانفیگ به فرمت Xray-core (نه sing-box)
-     */
     private fun buildXrayConfigFromProfile(profile: Profile): String {
-        // ---------- inbound SOCKS (با port در سطح اصلی) ----------
+        // ---------- inbound SOCKS ----------
         val inbound = buildJsonObject {
             put("port", 1080)
             put("protocol", "socks")
@@ -267,7 +264,6 @@ class MainViewModel @Inject constructor(
             )))
         }
 
-        // streamSettings
         val streamSettings = buildJsonObject {
             put("network", profile.network.ifEmpty { "tcp" })
             if (profile.sni.isNotBlank() || profile.customSni.isNotBlank()) {
@@ -304,7 +300,7 @@ class MainViewModel @Inject constructor(
             put("tag", "direct")
         }
 
-        // ---------- کل کانفیگ Xray ----------
+        // ---------- کل کانفیگ ----------
         val config = buildJsonObject {
             put("log", buildJsonObject {
                 put("loglevel", "warning")
@@ -315,7 +311,7 @@ class MainViewModel @Inject constructor(
                 put("rules", JsonArray(listOf(
                     buildJsonObject {
                         put("type", "field")
-                        put("inboundTag", JsonArray(listOf("socks-in")))
+                        put("inboundTag", JsonArray(listOf(JsonPrimitive("socks-in"))))
                         put("outboundTag", "proxy")
                     }
                 )))

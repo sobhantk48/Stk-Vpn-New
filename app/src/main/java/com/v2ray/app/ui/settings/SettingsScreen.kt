@@ -22,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.v2ray.app.bg.V2RayService
 import com.v2ray.app.model.SplitMode
 import com.v2ray.app.ui.theme.*
+import com.v2ray.app.viewmodel.BackupStatus
 import com.v2ray.app.viewmodel.MainViewModel
 import java.io.File
 import kotlinx.coroutines.launch
@@ -328,19 +329,21 @@ fun SettingsScreen(
                         }
                     }
 
-                    backupStatus?.let { status ->
-                        Spacer(modifier = Modifier.height(8.dp))
-                        when (status) {
-                            is com.v2ray.app.viewmodel.BackupStatus.Success -> {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Check, contentDescription = null, tint = GreenSuccess)
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(status.message, color = GreenSuccess, fontSize = 12.sp)
-                                }
+                    when (val status = backupStatus) {
+                        is BackupStatus.Success -> {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Check, contentDescription = null, tint = GreenSuccess)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(status.message, color = GreenSuccess, fontSize = 12.sp)
                             }
-                            is com.v2ray.app.viewmodel.BackupStatus.Error -> {
-                                Text("❌ ${status.message}", color = RedError, fontSize = 12.sp)
-                            }
+                        }
+                        is BackupStatus.Error -> {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("❌ ${status.message}", color = RedError, fontSize = 12.sp)
+                        }
+                        is BackupStatus.Idle -> {
+                            // nothing
                         }
                     }
 

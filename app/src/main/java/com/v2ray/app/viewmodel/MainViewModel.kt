@@ -6,8 +6,6 @@ import android.net.VpnService
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.v2ray.app.MainActivity
-import com.v2ray.app.data.ConnectionState
-import com.v2ray.app.data.ConnectionStatus
 import com.v2ray.app.data.Profile
 import com.v2ray.app.repository.ProfileRepository
 import com.v2ray.app.bg.V2RayService
@@ -16,7 +14,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
 import javax.inject.Inject
+
+// ===== Backup Status =====
+sealed class BackupStatus {
+    data class Success(val message: String) : BackupStatus()
+    data class Error(val message: String) : BackupStatus()
+    object Idle : BackupStatus()
+}
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
@@ -30,6 +40,9 @@ class MainViewModel @Inject constructor(
     private val _selectedProfile = MutableStateFlow<Profile?>(null)
     val selectedProfile: StateFlow<Profile?> = _selectedProfile.asStateFlow()
 
+    private val _selectedId = MutableStateFlow<String?>(null)
+    val selectedId: StateFlow<String?> = _selectedId.asStateFlow()
+
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
 
@@ -38,6 +51,9 @@ class MainViewModel @Inject constructor(
 
     private val _frontingEnabled = MutableStateFlow(false)
     val frontingEnabled: StateFlow<Boolean> = _frontingEnabled.asStateFlow()
+
+    private val _backupStatus = MutableStateFlow<BackupStatus>(BackupStatus.Idle)
+    val backupStatus: StateFlow<BackupStatus> = _backupStatus.asStateFlow()
 
     private var activity: MainActivity? = null
     private var currentProfile: Profile? = null
@@ -52,18 +68,43 @@ class MainViewModel @Inject constructor(
     fun loadProfiles() {
         viewModelScope.launch {
             _profiles.value = profileRepository.getAllProfiles()
-            _selectedProfile.value = _profiles.value.find { it.selected }
+            val selected = _profiles.value.find { it.selected }
+            _selectedProfile.value = selected
+            _selectedId.value = selected?.id
         }
     }
+
+    // ================== Profile Management ==================
 
     fun selectProfile(profile: Profile) {
         viewModelScope.launch {
             profileRepository.setSelected(profile.id)
             _selectedProfile.value = profile
+            _selectedId.value = profile.id
             _profiles.value = _profiles.value.map {
                 it.copy(selected = it.id == profile.id)
             }
         }
+    }
+
+    fun add(profile: Profile) {
+        viewModelScope.launch {
+            profileRepository.insertProfile(profile)
+            loadProfiles()
+        }
+    }
+
+    fun delete(profileId: String) {
+        viewModelScope.launch {
+            val profile = _profiles.value.find { it.id == profileId }
+            profile?.let { profileRepository.deleteProfile(it) }
+            loadProfiles()
+        }
+    }
+
+    fun select(profileId: String) {
+        val profile = _profiles.value.find { it.id == profileId }
+        profile?.let { selectProfile(it) }
     }
 
     fun toggleConnection() {
@@ -78,13 +119,11 @@ class MainViewModel @Inject constructor(
     }
 
     private fun connect(profile: Profile, activity: MainActivity) {
-        // درخواست مجوز VPN
         val intent = VpnService.prepare(activity)
         if (intent != null) {
             activity.requestVpnPermission()
             return
         }
-        // اگر مجوز داریم، مستقیماً وصل می‌شویم
         currentProfile = profile
         activity.startVpnService(profile)
         _isConnected.value = true
@@ -112,6 +151,7 @@ class MainViewModel @Inject constructor(
             }
             if (_selectedProfile.value?.id == profileId) {
                 _selectedProfile.value = _selectedProfile.value?.copy(customSni = sni)
+                _selectedId.value = profileId
             }
         }
     }
@@ -122,7 +162,6 @@ class MainViewModel @Inject constructor(
         val profile = _selectedProfile.value ?: return
         if (_frontingEnabled.value) return
 
-        // تنظیم دامنه‌ی fronting (مثلاً google.com)
         val frontingDomain = "www.google.com"
         viewModelScope.launch {
             profileRepository.updateFrontingDomain(profile.id, frontingDomain)
@@ -132,12 +171,11 @@ class MainViewModel @Inject constructor(
                 } else it
             }
             _selectedProfile.value = _selectedProfile.value?.copy(frontingDomain = frontingDomain)
+            _selectedId.value = profile.id
             _frontingEnabled.value = true
 
-            // اگر متصل هستیم، اتصال را با کانفیگ جدید برقرار کنیم
             if (_isConnected.value) {
                 disconnect()
-                // اتصال مجدد با fronting
                 val activity = activity ?: return@launch
                 connectWithFronting(profile, activity, frontingDomain)
             }
@@ -156,6 +194,7 @@ class MainViewModel @Inject constructor(
                 } else it
             }
             _selectedProfile.value = _selectedProfile.value?.copy(frontingDomain = "")
+            _selectedId.value = profile.id
             _frontingEnabled.value = false
 
             if (_isConnected.value) {
@@ -177,17 +216,55 @@ class MainViewModel @Inject constructor(
         _isConnected.value = true
     }
 
-    // ================== Helpers ==================
-
-    fun getCurrentProfile(): Profile? = currentProfile
-
-    fun isFrontingEnabled(): Boolean = _frontingEnabled.value
-
     fun toggleFronting() {
         if (_frontingEnabled.value) {
             stopFronting()
         } else {
             startFronting()
+        }
+    }
+
+    fun isFrontingEnabled(): Boolean = _frontingEnabled.value
+    fun getCurrentProfile(): Profile? = currentProfile
+
+    // ================== Backup & Restore ==================
+
+    fun getBackupFiles(): List<File> {
+        val dir = getApplication<Application>().filesDir
+        return dir.listFiles { file ->
+            file.name.startsWith("backup_") && file.name.endsWith(".json")
+        }?.sortedByDescending { it.lastModified() } ?: emptyList()
+    }
+
+    fun backupProfiles() {
+        viewModelScope.launch {
+            try {
+                val profiles = profileRepository.getAllProfiles()
+                val json = Json.encodeToString(profiles)
+                val dateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+                val fileName = "backup_${dateFormat.format(Date())}.json"
+                val file = File(getApplication<Application>().filesDir, fileName)
+                file.writeText(json)
+                _backupStatus.value = BackupStatus.Success("Backup saved: $fileName")
+            } catch (e: Exception) {
+                _backupStatus.value = BackupStatus.Error("Backup failed: ${e.message}")
+            }
+        }
+    }
+
+    fun restoreProfiles(file: File) {
+        viewModelScope.launch {
+            try {
+                val json = file.readText()
+                val profiles: List<Profile> = Json.decodeFromString(json)
+                for (profile in profiles) {
+                    profileRepository.insertProfile(profile)
+                }
+                _backupStatus.value = BackupStatus.Success("Restored ${profiles.size} profiles")
+                loadProfiles()
+            } catch (e: Exception) {
+                _backupStatus.value = BackupStatus.Error("Restore failed: ${e.message}")
+            }
         }
     }
 }

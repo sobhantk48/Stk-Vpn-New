@@ -1,3 +1,5 @@
+import androidx.room.Entity
+import androidx.room.PrimaryKey
 package com.v2ray.app.data
 
 import android.util.Base64
@@ -9,7 +11,8 @@ import java.io.ByteArrayInputStream
 import java.util.zip.InflaterInputStream
 
 @KSerializable
-data class Profile(
+@Entity(tableName = "profiles")
+data class Profile(@PrimaryKey val id: String = java.util.UUID.randomUUID().toString(),
     val id: String = java.util.UUID.randomUUID().toString(),
     val name: String,
     val type: String,

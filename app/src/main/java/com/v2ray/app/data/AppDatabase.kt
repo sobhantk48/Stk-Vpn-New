@@ -6,13 +6,14 @@ import androidx.room.RoomDatabase
 import android.content.Context
 
 @Database(
-    entities = [ConnectionHistory::class, SubscriptionEntity::class],
-    version = 2,
+    entities = [ConnectionHistory::class, SubscriptionEntity::class, Profile::class],
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun historyDao(): HistoryDao
     abstract fun subscriptionDao(): SubscriptionDao
+    abstract fun profileDao(): ProfileDao
 
     companion object {
         @Volatile

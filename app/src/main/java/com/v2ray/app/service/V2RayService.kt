@@ -12,6 +12,7 @@ import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.v2ray.app.BuildConfig
 import com.v2ray.app.MainActivity
 import com.v2ray.app.R
 import com.v2ray.app.model.SplitMode
@@ -43,14 +44,6 @@ class V2RayService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
-        // تنظیم UncaughtExceptionHandler
-        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            val msg = "Uncaught exception in thread ${thread.name}: ${throwable.message}"
-            Log.e(TAG, msg, throwable)
-            Logger.e(msg, throwable)
-            defaultHandler?.uncaughtException(thread, throwable)
-        }
         Logger.i("V2RayService onCreate")
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification("Initializing...", false))
@@ -84,6 +77,7 @@ class V2RayService : VpnService() {
         }
 
         serviceScope.launch {
+            var fd: Int = -1
             try {
                 Logger.i("Building VPN interface...")
                 val builder = Builder()
@@ -114,9 +108,9 @@ class V2RayService : VpnService() {
                 }
 
                 vpnInterface = builder.establish()
-                Logger.i("VPN interface established with fd: ${vpnInterface?.fd}")
+                fd = vpnInterface?.fd ?: -1
+                Logger.i("VPN interface established with fd: $fd")
 
-                val fd = vpnInterface?.fd ?: -1
                 if (fd == -1) {
                     throw Exception("VPN interface fd is invalid")
                 }
@@ -125,42 +119,30 @@ class V2RayService : VpnService() {
                 val result = singBoxManager.startV2Ray(config, fd)
                 if (result.isSuccess) {
                     isRunning = true
-                    // Try-catch مخصوص Notification
-                    try {
-                        mainHandler.post {
-                            updateNotification("🟢 Connected", true)
-                        }
-                    } catch (e: Exception) {
-                        Logger.e("Error updating notification", e)
+                    mainHandler.post {
+                        updateNotification("🟢 Connected", true)
                     }
                     Logger.i("V2Ray started successfully")
                 } else {
                     val error = result.exceptionOrNull()?.message ?: "Unknown error"
                     Logger.e("V2Ray start failed: $error", result.exceptionOrNull())
-                    try {
-                        mainHandler.post {
-                            updateNotification("❌ Connection Failed: $error", false)
-                        }
-                    } catch (e: Exception) {
-                        Logger.e("Error updating notification", e)
+                    mainHandler.post {
+                        updateNotification("❌ Connection Failed: $error", false)
                     }
-                    vpnInterface?.close()
-                    vpnInterface = null
                 }
             } catch (e: Exception) {
                 Logger.e("startVpn error", e)
-                try {
-                    mainHandler.post {
-                        updateNotification("❌ Error: ${e.message}", false)
-                    }
-                } catch (ex: Exception) {
-                    Logger.e("Error updating notification", ex)
+                mainHandler.post {
+                    updateNotification("❌ Error: ${e.message}", false)
                 }
-                try {
-                    vpnInterface?.close()
-                } catch (_: Exception) {}
-                vpnInterface = null
-                isRunning = false
+            } finally {
+                // بستن vpnInterface در صورت خطا
+                if (!isRunning) {
+                    try {
+                        vpnInterface?.close()
+                    } catch (_: Exception) {}
+                    vpnInterface = null
+                }
             }
         }
     }
@@ -173,12 +155,8 @@ class V2RayService : VpnService() {
                 vpnInterface?.close()
                 vpnInterface = null
                 isRunning = false
-                try {
-                    mainHandler.post {
-                        updateNotification("⏹️ Disconnected", false)
-                    }
-                } catch (e: Exception) {
-                    Logger.e("Error updating notification", e)
+                mainHandler.post {
+                    updateNotification("⏹️ Disconnected", false)
                 }
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -190,6 +168,8 @@ class V2RayService : VpnService() {
     }
 
     override fun protect(socket: Int): Boolean {
+        // در حالت Debug اجازه‌ی همه‌ی سوکت‌ها را بده
+        if (BuildConfig.DEBUG) return true
         return if (killSwitchEnabled && !isRunning) {
             false
         } else {
@@ -249,7 +229,6 @@ class V2RayService : VpnService() {
         } catch (e: Exception) {
             Log.e(TAG, "createNotification error", e)
             Logger.e("createNotification error", e)
-            // Fallback: یک Notification ساده بدون Action
             return NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(if (isConnected) "VPN Connected" else "VPN Disconnected")
                 .setContentText(text)

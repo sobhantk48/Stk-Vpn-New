@@ -32,30 +32,45 @@ class SingBoxManager(private val context: Context) {
 
     private inner class CoreCallback : CoreCallbackHandler {
         override fun onEmitStatus(status: Long, message: String): Long {
-            Log.d(TAG, "onEmitStatus: $status - $message")
-            _coreState.update {
-                when (status) {
-                    0L -> CoreState.IDLE
-                    1L -> CoreState.CONNECTING
-                    2L -> CoreState.CONNECTED
-                    3L -> CoreState.DISCONNECTED
-                    4L -> CoreState.ERROR
-                    else -> CoreState.IDLE
+            return try {
+                Log.d(TAG, "onEmitStatus: $status - $message")
+                _coreState.update {
+                    when (status) {
+                        0L -> CoreState.IDLE
+                        1L -> CoreState.CONNECTING
+                        2L -> CoreState.CONNECTED
+                        3L -> CoreState.DISCONNECTED
+                        4L -> CoreState.ERROR
+                        else -> CoreState.IDLE
+                    }
                 }
+                0
+            } catch (e: Exception) {
+                Log.e(TAG, "onEmitStatus error", e)
+                0
             }
-            return 0
         }
 
         override fun startup(): Long {
-            Log.d(TAG, "startup: Core is starting up")
-            _coreState.update { CoreState.CONNECTING }
-            return 0
+            return try {
+                Log.d(TAG, "startup: Core is starting up")
+                _coreState.update { CoreState.CONNECTING }
+                0
+            } catch (e: Exception) {
+                Log.e(TAG, "startup error", e)
+                0
+            }
         }
 
         override fun shutdown(): Long {
-            Log.d(TAG, "shutdown: Core is shutting down")
-            _coreState.update { CoreState.DISCONNECTED }
-            return 0
+            return try {
+                Log.d(TAG, "shutdown: Core is shutting down")
+                _coreState.update { CoreState.DISCONNECTED }
+                0
+            } catch (e: Exception) {
+                Log.e(TAG, "shutdown error", e)
+                0
+            }
         }
     }
 
@@ -65,7 +80,6 @@ class SingBoxManager(private val context: Context) {
                 if (isInitialized) return@withContext Result.success(Unit)
                 Seq.setContext(context)
                 Log.d(TAG, "Seq.setContext done")
-                // اصلاح: استفاده از Libv2ray (با حرف بزرگ L)
                 Libv2ray.initCoreEnv(workingDir, LOG_LEVEL)
                 Log.d(TAG, "Libv2ray.initCoreEnv done")
                 val callback = CoreCallback()
@@ -93,7 +107,13 @@ class SingBoxManager(private val context: Context) {
                     throw Exception("Invalid VPN file descriptor: $vpnFd")
                 }
                 Log.d(TAG, "Starting V2Ray with fd: $vpnFd")
-                ctrl.startLoop(configJson, vpnFd)
+                try {
+                    ctrl.startLoop(configJson, vpnFd)
+                } catch (e: Exception) {
+                    Log.e(TAG, "startLoop failed", e)
+                    _coreState.update { CoreState.ERROR }
+                    return@withContext Result.failure(e)
+                }
                 isRunning = true
                 _coreState.update { CoreState.CONNECTED }
                 Log.d(TAG, "V2Ray started successfully")
@@ -136,11 +156,4 @@ class SingBoxManager(private val context: Context) {
             }
         }
     }
-
-    suspend fun updateSni(newSni: String): Result<Unit> =
-        withContext(Dispatchers.IO) {
-            Log.d(TAG, "SNI updated to: $newSni")
-            // در آینده می‌توان کانفیگ را به‌روز کرد
-            Result.success(Unit)
-        }
 }

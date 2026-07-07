@@ -29,6 +29,7 @@
             </intent-filter>
         </activity>
 
+        <!-- سرویس VPN اصلی -->
         <service
             android:name=".service.V2RayService"
             android:enabled="true"
@@ -39,6 +40,13 @@
                 <action android:name="android.net.VpnService" />
             </intent-filter>
         </service>
+
+        <!-- سرویس BoxService از libbox -->
+        <service
+            android:name="io.nekohasekai.libbox.BoxService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
     </application>
 </manifest>

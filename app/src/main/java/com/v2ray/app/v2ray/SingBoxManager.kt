@@ -148,23 +148,19 @@ class SingBoxManager(private val context: Context) {
                     stopV2Ray().getOrThrow()
                 }
 
-                // روش حرفه‌ای: استفاده از Libbox.newBoxInstance (مانند sfa)
                 val box = Libbox.newBoxInstance(configJson, LocalResolver)
                 boxInstance = box
                 box.start()
                 isRunning = true
                 _coreState.update { CoreState.CONNECTED }
-                Log.d(TAG, "Sing-box started successfully using Libbox (sfa approach)")
+                Log.d(TAG, "✅ Sing-box started successfully with Libbox")
                 Result.success(Unit)
             } catch (e: Exception) {
-                Log.e(TAG, "startV2Ray failed", e)
+                Log.e(TAG, "❌ startV2Ray failed", e)
                 _coreState.update { CoreState.ERROR }
                 Result.failure(e)
             }
         }
-
-    suspend fun startV2RayWithConfig(configJson: String, vpnFd: Int): Result<Unit> =
-        startV2Ray(configJson, vpnFd)
 
     suspend fun stopV2Ray(): Result<Unit> =
         withContext(Dispatchers.IO) {

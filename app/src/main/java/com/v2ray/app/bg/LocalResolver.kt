@@ -23,7 +23,7 @@ object LocalResolver : LocalDNSTransport {
 
     @RequiresApi(Build.VERSION_CODES.Q)
     override fun exchange(ctx: ExchangeContext, message: ByteArray) {
-        return runBlocking {
+        runBlocking {
             suspendCoroutine { continuation ->
                 val signal = CancellationSignal()
                 ctx.onCancel { signal.cancel() }
@@ -61,7 +61,7 @@ object LocalResolver : LocalDNSTransport {
     }
 
     override fun lookup(ctx: ExchangeContext, network: String, domain: String) {
-        return runBlocking {
+        runBlocking {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 suspendCoroutine { continuation ->
                     val signal = CancellationSignal()

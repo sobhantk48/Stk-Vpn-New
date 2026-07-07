@@ -19,7 +19,6 @@ android {
 
     signingConfigs {
         create("release") {
-            // این مقادیر از GitHub Secrets خوانده می‌شوند
             storeFile = file("keystore.jks")
             storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "v2ray123"
             keyAlias = System.getenv("KEY_ALIAS") ?: "v2ray"
@@ -31,7 +30,12 @@ android {
         release {
             signingConfig = signingConfigs.getByName("release")
             minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+            shrinkResources false
         }
     }
 
@@ -76,26 +80,29 @@ dependencies {
     implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
 
-    implementation "androidx.camera:camera-core:1.4.0"
-    implementation "androidx.camera:camera-camera2:1.4.0"
-    implementation "androidx.camera:camera-lifecycle:1.4.0"
-    implementation "androidx.camera:camera-view:1.4.0"
-
-    implementation "com.google.mlkit:barcode-scanning:17.2.0"
+    // ===== حذف شدند =====
+    // CameraX, ML Kit, OkHttp, BouncyCastle
 
     implementation files('libs/libbox.aar')
-
-    implementation "org.bouncycastle:bcpkix-jdk15on:1.70"
-    implementation "com.squareup.okhttp3:okhttp:4.12.0"
 
     implementation "androidx.room:room-runtime:2.6.1"
     kapt "androidx.room:room-compiler:2.6.1"
     implementation "androidx.room:room-ktx:2.6.1"
-}
 
-dependencies {
-    // ... dependencies قبلی
-
-    // DataStore
     implementation "androidx.datastore:datastore-preferences:1.1.0"
 }
+
+android {
+    defaultConfig {
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a'
+        }
+    }
+}
+
+// کاهش وابستگی‌های توسعه
+debugImplementation "androidx.compose.ui:ui-tooling"
+debugImplementation "androidx.compose.ui:ui-test-manifest"
+
+// فقط برای debug (برای کاهش حجم release)
+releaseImplementation "androidx.compose.ui:ui-tooling-preview"

@@ -8,6 +8,7 @@ import android.content.Intent
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.v2ray.app.MainActivity
 import com.v2ray.app.R
@@ -18,6 +19,7 @@ import kotlinx.coroutines.*
 
 class V2RayService : VpnService() {
     companion object {
+        private const val TAG = "V2RayService"
         const val ACTION_CONNECT = "com.v2ray.app.CONNECT"
         const val ACTION_DISCONNECT = "com.v2ray.app.DISCONNECT"
         const val NOTIFICATION_ID = 1001
@@ -44,17 +46,22 @@ class V2RayService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_CONNECT -> {
-                val config = intent.getStringExtra(EXTRA_CONFIG) ?: return START_NOT_STICKY
-                val profileId = intent.getStringExtra(EXTRA_PROFILE_ID) ?: ""
-                Logger.i("Received CONNECT action for profile: $profileId")
-                startVpn(config, profileId)
+        try {
+            when (intent?.action) {
+                ACTION_CONNECT -> {
+                    val config = intent.getStringExtra(EXTRA_CONFIG) ?: return START_NOT_STICKY
+                    val profileId = intent.getStringExtra(EXTRA_PROFILE_ID) ?: ""
+                    Logger.i("Received CONNECT action for profile: $profileId")
+                    startVpn(config, profileId)
+                }
+                ACTION_DISCONNECT -> {
+                    Logger.i("Received DISCONNECT action")
+                    stopVpn()
+                }
             }
-            ACTION_DISCONNECT -> {
-                Logger.i("Received DISCONNECT action")
-                stopVpn()
-            }
+        } catch (e: Exception) {
+            Logger.e("Error in onStartCommand", e)
+            stopVpn()
         }
         return START_STICKY
     }
@@ -113,12 +120,18 @@ class V2RayService : VpnService() {
                     val error = result.exceptionOrNull()?.message ?: "Unknown error"
                     Logger.e("V2Ray start failed: $error", result.exceptionOrNull())
                     updateNotification("❌ Connection Failed: $error", false)
+                    // بستن VPN interface در صورت خطا
+                    vpnInterface?.close()
+                    vpnInterface = null
                 }
             } catch (e: Exception) {
                 Logger.e("startVpn error", e)
                 updateNotification("❌ Error: ${e.message}", false)
-                vpnInterface?.close()
+                try {
+                    vpnInterface?.close()
+                } catch (_: Exception) {}
                 vpnInterface = null
+                isRunning = false
             }
         }
     }
@@ -195,9 +208,13 @@ class V2RayService : VpnService() {
     }
 
     private fun updateNotification(text: String, isConnected: Boolean) {
-        val notification = createNotification(text, isConnected)
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, notification)
+        try {
+            val notification = createNotification(text, isConnected)
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.notify(NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            Logger.e("updateNotification error", e)
+        }
     }
 
     override fun onDestroy() {

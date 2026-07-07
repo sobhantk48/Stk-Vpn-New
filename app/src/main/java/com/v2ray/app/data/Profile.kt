@@ -74,7 +74,7 @@ class Profile(
     // Domain Fronting
     var frontingDomain: String = "",
     // Non-database fields (marked with @Ignore)
-    var selected: Boolean = false,
+    @Ignore var selected: Boolean = false,
     @Ignore var ping: Int = 0,
     @Ignore var country: String = "",
     @Ignore var city: String = ""
@@ -630,7 +630,11 @@ class Profile(
                         } catch (_: Exception) { }
                     }
                 }
-                jsonString = jsonString ?: String(bytes, Charsets.UTF_8)
+                if (jsonString == null) {
+                    jsonString = String(bytes, Charsets.UTF_8)
+                }
+                if (jsonString == null) return null
+
                 val root = Json.parseToJsonElement(jsonString).jsonObject
                 val containers = root["containers"]?.jsonArray ?: return null
                 for (container in containers) {
@@ -649,7 +653,9 @@ class Profile(
                     }
                 }
                 return null
-            } catch (_: Exception) { null }
+            } catch (_: Exception) {
+                return null
+            }
         }
 
         private fun parseAwgIni(ini: String, root: JsonObject? = null): Profile? {
@@ -779,7 +785,9 @@ class Profile(
                     awgI4 = i4,
                     awgI5 = i5
                 )
-            } catch (_: Exception) { null }
+            } catch (_: Exception) {
+                return null
+            }
         }
     }
 }

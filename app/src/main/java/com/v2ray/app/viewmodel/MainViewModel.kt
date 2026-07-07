@@ -1,7 +1,6 @@
 package com.v2ray.app.viewmodel
 
 import android.app.Application
-import android.content.Context
 import android.net.VpnService
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope

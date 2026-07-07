@@ -7,8 +7,9 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.net.VpnService
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelFileDescriptor
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.v2ray.app.MainActivity
 import com.v2ray.app.R
@@ -37,9 +38,16 @@ class V2RayService : VpnService() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var isRunning = false
     private val singBoxManager = SingBoxManager(this)
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate() {
         super.onCreate()
+        // تنظیم UncaughtExceptionHandler برای ثبت کرش‌ها
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            Logger.e("Uncaught exception in thread ${thread.name}", throwable)
+            defaultHandler?.uncaughtException(thread, throwable)
+        }
         Logger.i("V2RayService onCreate")
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification("Initializing...", false))
@@ -114,19 +122,25 @@ class V2RayService : VpnService() {
                 val result = singBoxManager.startV2Ray(config, fd)
                 if (result.isSuccess) {
                     isRunning = true
-                    updateNotification("🟢 Connected", true)
+                    // اجرای Notification در ترد اصلی
+                    mainHandler.post {
+                        updateNotification("🟢 Connected", true)
+                    }
                     Logger.i("V2Ray started successfully")
                 } else {
                     val error = result.exceptionOrNull()?.message ?: "Unknown error"
                     Logger.e("V2Ray start failed: $error", result.exceptionOrNull())
-                    updateNotification("❌ Connection Failed: $error", false)
-                    // بستن VPN interface در صورت خطا
+                    mainHandler.post {
+                        updateNotification("❌ Connection Failed: $error", false)
+                    }
                     vpnInterface?.close()
                     vpnInterface = null
                 }
             } catch (e: Exception) {
                 Logger.e("startVpn error", e)
-                updateNotification("❌ Error: ${e.message}", false)
+                mainHandler.post {
+                    updateNotification("❌ Error: ${e.message}", false)
+                }
                 try {
                     vpnInterface?.close()
                 } catch (_: Exception) {}
@@ -144,7 +158,9 @@ class V2RayService : VpnService() {
                 vpnInterface?.close()
                 vpnInterface = null
                 isRunning = false
-                updateNotification("⏹️ Disconnected", false)
+                mainHandler.post {
+                    updateNotification("⏹️ Disconnected", false)
+                }
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 Logger.i("VPN stopped")

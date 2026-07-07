@@ -4,10 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.work.*
 import com.v2ray.app.data.AppDatabase
-import com.v2ray.app.data.Profile
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.TimeUnit
 
@@ -24,10 +21,9 @@ object SubscriptionUpdater {
     }
 
     fun scheduleAll() {
+        // دریافت لیست اشتراک‌ها به‌صورت همگام
         val subscriptions = runBlocking {
-            db.subscriptionDao().getActiveAutoUpdate().collect { list ->
-                return@collect list
-            }
+            db.subscriptionDao().getActiveAutoUpdate().first()
         }
 
         if (subscriptions.isEmpty()) {
@@ -61,12 +57,12 @@ object SubscriptionUpdater {
         params: WorkerParameters
     ) : CoroutineWorker(context, params) {
 
+        private val db = AppDatabase.getInstance(applicationContext)
+
         override suspend fun doWork(): Result {
             return try {
-                val db = AppDatabase.getInstance(applicationContext)
-                val subscriptions = db.subscriptionDao().getActiveAutoUpdate().collect { list ->
-                    return@collect list
-                }
+                // دریافت لیست اشتراک‌ها
+                val subscriptions = db.subscriptionDao().getActiveAutoUpdate().first()
 
                 for (sub in subscriptions) {
                     if (!sub.needsUpdate()) continue
@@ -74,7 +70,7 @@ object SubscriptionUpdater {
                     try {
                         val profiles = SubscriptionParser.fetchAndParse(sub.url)
                         if (profiles.isNotEmpty()) {
-                            // ذخیره‌سازی پروفایل‌ها (می‌توانید به دیتابیس پروفایل اضافه کنید)
+                            // TODO: ذخیره‌سازی پروفایل‌ها در دیتابیس
                             Log.d(TAG, "Updated ${profiles.size} profiles from ${sub.name}")
                         }
                     } catch (e: Exception) {

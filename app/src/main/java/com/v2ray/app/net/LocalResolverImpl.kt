@@ -1,18 +1,23 @@
-package com.v2ray.app.net
+package moe.matsuri.nb4a.net
 
 import android.net.DnsResolver
 import android.os.Build
 import android.os.CancellationSignal
 import android.system.ErrnoException
 import androidx.annotation.RequiresApi
-import com.v2ray.app.utils.Logger
+import io.nekohasekai.sagernet.SagerNet
+import io.nekohasekai.sagernet.ktx.Logs
+import io.nekohasekai.sagernet.ktx.runOnIoDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asExecutor
 import libcore.ExchangeContext
 import libcore.LocalDNSTransport
 import java.net.InetAddress
 import java.net.UnknownHostException
 
 object LocalResolverImpl : LocalDNSTransport {
+
+    // new local
 
     private const val RCODE_NXDOMAIN = 3
 
@@ -21,14 +26,16 @@ object LocalResolverImpl : LocalDNSTransport {
     }
 
     override fun networkHandle(): Long {
-        // استفاده از شبکه پیش‌فرض
-        return 0L
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            return SagerNet.underlyingNetwork?.networkHandle ?: 0
+        }
+        return 0
     }
 
     @RequiresApi(Build.VERSION_CODES.Q)
     override fun exchange(ctx: ExchangeContext, message: ByteArray) {
         val signal = CancellationSignal()
-        ctx.onCancel { signal.cancel() }
+        ctx.onCancel(signal::cancel)
 
         val callback = object : DnsResolver.Callback<ByteArray> {
             override fun onAnswer(answer: ByteArray, rcode: Int) {
@@ -40,14 +47,14 @@ object LocalResolverImpl : LocalDNSTransport {
                 if (cause is ErrnoException) {
                     ctx.errnoCode(cause.errno)
                 } else {
-                    Logger.e("DNS exchange error", error)
+                    Logs.w(error)
                     ctx.errnoCode(114514)
                 }
             }
         }
 
         DnsResolver.getInstance().rawQuery(
-            null,
+            SagerNet.underlyingNetwork,
             message,
             DnsResolver.FLAG_NO_RETRY,
             Dispatchers.IO.asExecutor(),
@@ -59,7 +66,7 @@ object LocalResolverImpl : LocalDNSTransport {
     override fun lookup(ctx: ExchangeContext, network: String, domain: String) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val signal = CancellationSignal()
-            ctx.onCancel { signal.cancel() }
+            ctx.onCancel(signal::cancel)
 
             val callback = object : DnsResolver.Callback<Collection<InetAddress>> {
                 override fun onAnswer(answer: Collection<InetAddress>, rcode: Int) {
@@ -70,7 +77,7 @@ object LocalResolverImpl : LocalDNSTransport {
                             ctx.errorCode(rcode)
                         }
                     } catch (e: Exception) {
-                        Logger.e("DNS lookup answer error", e)
+                        Logs.w(e)
                         ctx.errnoCode(114514)
                     }
                 }
@@ -81,11 +88,11 @@ object LocalResolverImpl : LocalDNSTransport {
                         if (cause is ErrnoException) {
                             ctx.errnoCode(cause.errno)
                         } else {
-                            Logger.e("DNS lookup error", error)
+                            Logs.w(error)
                             ctx.errnoCode(114514)
                         }
                     } catch (e: Exception) {
-                        Logger.e("DNS lookup error handling", e)
+                        Logs.w(e)
                         ctx.errnoCode(114514)
                     }
                 }
@@ -98,7 +105,7 @@ object LocalResolverImpl : LocalDNSTransport {
             }
             if (type != null) {
                 DnsResolver.getInstance().query(
-                    null,
+                    SagerNet.underlyingNetwork,
                     domain,
                     type,
                     DnsResolver.FLAG_NO_RETRY,
@@ -108,7 +115,7 @@ object LocalResolverImpl : LocalDNSTransport {
                 )
             } else {
                 DnsResolver.getInstance().query(
-                    null,
+                    SagerNet.underlyingNetwork,
                     domain,
                     DnsResolver.FLAG_NO_RETRY,
                     Dispatchers.IO.asExecutor(),
@@ -117,16 +124,28 @@ object LocalResolverImpl : LocalDNSTransport {
                 )
             }
         } else {
-            // Fallback برای اندروید قدیمی‌تر
-            try {
-                val answer = InetAddress.getAllByName(domain)
-                ctx.success(answer.mapNotNull { it.hostAddress }.joinToString("\n"))
-            } catch (e: UnknownHostException) {
-                ctx.errorCode(RCODE_NXDOMAIN)
-            } catch (e: Exception) {
-                Logger.e("DNS lookup fallback error", e)
-                ctx.errnoCode(114514)
+            runOnIoDispatcher {
+                // 老版本系统，继续用阻塞的 InetAddress
+                try {
+                    val u = SagerNet.underlyingNetwork
+                    val answer = try {
+                        u?.getAllByName(domain)
+                    } catch (e: UnknownHostException) {
+                        null
+                    } ?: InetAddress.getAllByName(domain)
+                    if (answer != null) {
+                        ctx.success(answer.mapNotNull { it.hostAddress }.joinToString("\n"))
+                    } else {
+                        ctx.errnoCode(114514)
+                    }
+                } catch (e: UnknownHostException) {
+                    ctx.errorCode(RCODE_NXDOMAIN)
+                } catch (e: Exception) {
+                    Logs.w(e)
+                    ctx.errnoCode(114514)
+                }
             }
         }
     }
+
 }

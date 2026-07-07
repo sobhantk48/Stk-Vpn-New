@@ -1,17 +1,18 @@
 package com.v2ray.app.v2ray
 
 import android.content.Context
-import android.content.Intent
 import android.util.Log
-import io.nekohasekai.libbox.BoxService
+import com.v2ray.app.data.Profile
+import com.v2ray.app.net.LocalResolverImpl
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import libcore.BoxInstance
+import libcore.Libcore
 import org.json.JSONArray
 import org.json.JSONObject
-import com.v2ray.app.data.Profile
 
 class SingBoxManager(private val context: Context) {
     companion object {
@@ -25,11 +26,11 @@ class SingBoxManager(private val context: Context) {
     }
 
     private var isRunning = false
+    private var boxInstance: BoxInstance? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     fun buildSingBoxConfig(profile: Profile): String {
         return try {
-            Log.d(TAG, "buildSingBoxConfig: starting for ${profile.name}")
             val templateJson = context.assets.open("singbox_config.json")
                 .bufferedReader().use { it.readText() }
             val root = JSONObject(templateJson)
@@ -98,9 +99,7 @@ class SingBoxManager(private val context: Context) {
                 }
             }
 
-            val result = root.toString(2)
-            Log.d(TAG, "buildSingBoxConfig: success, length=${result.length}")
-            result
+            root.toString(2)
         } catch (e: Exception) {
             Log.e(TAG, "buildSingBoxConfig failed", e)
             buildFallbackConfig(profile)
@@ -145,27 +144,19 @@ class SingBoxManager(private val context: Context) {
     suspend fun startV2Ray(configJson: String, vpnFd: Int): Result<Unit> =
         withContext(Dispatchers.IO) {
             try {
-                Log.d(TAG, "startV2Ray: vpnFd=$vpnFd, config length=${configJson.length}")
-                Log.d(TAG, "startV2Ray: config preview=${configJson.take(300)}")
-
                 if (isRunning) {
-                    Log.d(TAG, "startV2Ray: already running, stopping first")
                     stopV2Ray().getOrThrow()
                 }
 
-                val intent = Intent(context, BoxService::class.java).apply {
-                    putExtra("config", configJson)
-                    putExtra("tun_fd", vpnFd)
-                }
-                context.startService(intent)
-                Log.d(TAG, "startV2Ray: BoxService started")
-
+                val box = Libcore.newSingBoxInstance(configJson, LocalResolverImpl)
+                boxInstance = box
+                box.start()
                 isRunning = true
                 _coreState.update { CoreState.CONNECTED }
-                Log.d(TAG, "startV2Ray: success")
+                Log.d(TAG, "Sing-box started successfully with Libcore")
                 Result.success(Unit)
             } catch (e: Exception) {
-                Log.e(TAG, "startV2Ray: failed", e)
+                Log.e(TAG, "startV2Ray failed", e)
                 _coreState.update { CoreState.ERROR }
                 Result.failure(e)
             }
@@ -177,11 +168,11 @@ class SingBoxManager(private val context: Context) {
     suspend fun stopV2Ray(): Result<Unit> =
         withContext(Dispatchers.IO) {
             try {
-                Log.d(TAG, "stopV2Ray: called")
-                context.stopService(Intent(context, BoxService::class.java))
+                boxInstance?.close()
+                boxInstance = null
                 isRunning = false
                 _coreState.update { CoreState.DISCONNECTED }
-                Log.d(TAG, "stopV2Ray: success")
+                Log.d(TAG, "Sing-box stopped")
                 Result.success(Unit)
             } catch (e: Exception) {
                 Log.e(TAG, "stopV2Ray failed", e)
@@ -194,8 +185,9 @@ class SingBoxManager(private val context: Context) {
     fun cleanup() {
         scope.launch {
             try {
-                context.stopService(Intent(context, BoxService::class.java))
+                boxInstance?.close()
             } catch (_: Exception) {}
+            boxInstance = null
             isRunning = false
             _coreState.update { CoreState.IDLE }
             Log.d(TAG, "Cleanup done")

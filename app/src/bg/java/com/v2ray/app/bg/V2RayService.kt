@@ -9,6 +9,7 @@ import android.net.VpnService
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -76,7 +77,7 @@ class V2RayService : VpnService() {
         return START_STICKY
     }
 
-    override fun onBind(intent: Intent): android.os.IBinder = binder
+    override fun onBind(intent: Intent): IBinder = binder
 
     private fun startVpn(config: String, profileId: String) {
         if (isRunning) {

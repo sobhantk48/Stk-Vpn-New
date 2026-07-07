@@ -6,10 +6,10 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.v2ray.app.MainActivity
+import com.v2ray.app.bg.V2RayService
 import com.v2ray.app.data.AppDatabase
 import com.v2ray.app.data.ConnectionHistory
 import com.v2ray.app.data.Profile
-import com.v2ray.app.service.V2RayService
 import com.v2ray.app.utils.BackupManager
 import com.v2ray.app.utils.SpeedTester
 import com.v2ray.app.utils.SniResult
@@ -204,7 +204,7 @@ class MainViewModel @Inject constructor(
 
     fun toggleConnection() {
         if (_isConnected.value) {
-            context.stopService(Intent(context, V2RayService::class.java))
+            activityRef?.stopVpnService()
             _isConnected.value = false
             viewModelScope.launch {
                 currentProfileId?.let { id ->
@@ -224,14 +224,9 @@ class MainViewModel @Inject constructor(
 
     fun onVpnPermissionGranted() {
         val selected = selectedProfile.value ?: return
-        val config = buildDebugXrayConfig(selected)
-        Log.d(TAG, "Generated Xray config: $config")
-        val intent = Intent(context, V2RayService::class.java).apply {
-            action = V2RayService.ACTION_CONNECT
-            putExtra(V2RayService.EXTRA_CONFIG, config)
-            putExtra(V2RayService.EXTRA_PROFILE_ID, selected.id)
-        }
-        context.startService(intent)
+        val config = buildSingBoxConfig(selected)
+        Log.d(TAG, "Config: $config")
+        activityRef?.startVpnService(config, selected.id)
         _isConnected.value = true
         connectStartTime = System.currentTimeMillis()
         currentProfileId = selected.id
@@ -240,91 +235,59 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    private fun buildDebugXrayConfig(profile: Profile): String {
-        // مسیر فایل‌های لاگ
-        val logDir = context.filesDir.absolutePath
-        val accessLog = "$logDir/access.log"
-        val errorLog = "$logDir/error.log"
-
-        // inbound SOCKS
+    private fun buildSingBoxConfig(profile: Profile): String {
         val inbound = buildJsonObject {
-            put("port", 1080)
-            put("protocol", "socks")
-            put("settings", buildJsonObject {
-                put("auth", "noauth")
-                put("udp", true)
-            })
+            put("type", "tun")
+            put("tag", "tun-in")
+            put("interface_name", "v2ray-tun")
+            put("address", JsonArray(listOf(JsonPrimitive("172.19.0.1/30"))))
+            put("auto_route", true)
+            put("strict_route", true)
+            put("stack", "system")
+            put("sniff", true)
         }
 
-        // user
-        val user = buildJsonObject {
-            put("id", profile.uuid)
-            put("encryption", "none")
-        }
-
-        // vnext
-        val vnext = buildJsonObject {
-            put("address", profile.address)
-            put("port", profile.port)
-            put("users", JsonArray(listOf(user)))
-        }
-
-        // tlsSettings
-        val tlsSettings = buildJsonObject {
-            put("serverName", profile.getEffectiveSni())
-            put("allowInsecure", true)
-        }
-
-        // wsSettings
-        val wsSettings = buildJsonObject {
-            put("path", profile.path.ifEmpty { "/" })
-            if (profile.host.isNotBlank()) {
-                put("headers", buildJsonObject {
-                    put("Host", profile.host)
+        val outbound = buildJsonObject {
+            put("type", profile.type.lowercase())
+            put("server", profile.address)
+            put("server_port", profile.port)
+            put("uuid", profile.uuid)
+            val sni = profile.getEffectiveSni()
+            if (sni.isNotBlank()) {
+                put("tls", buildJsonObject {
+                    put("enabled", true)
+                    put("server_name", sni)
+                    put("insecure", true)
+                    put("fingerprint", profile.fingerprint)
+                })
+            }
+            if (profile.network == "ws") {
+                put("transport", buildJsonObject {
+                    put("type", "ws")
+                    put("path", profile.path.ifEmpty { "/" })
+                    if (profile.host.isNotBlank()) {
+                        put("headers", buildJsonObject {
+                            put("Host", profile.host)
+                        })
+                    }
                 })
             }
         }
 
-        // streamSettings
-        val streamSettings = buildJsonObject {
-            put("network", profile.network.ifEmpty { "tcp" })
-            if (profile.sni.isNotBlank() || profile.customSni.isNotBlank()) {
-                put("security", "tls")
-                put("tlsSettings", tlsSettings)
-            }
-            if (profile.network == "ws") {
-                put("wsSettings", wsSettings)
-            }
-        }
-
-        // outbound
-        val outbound = buildJsonObject {
-            put("protocol", "vless")
-            put("settings", buildJsonObject {
-                put("vnext", JsonArray(listOf(vnext)))
-            })
-            put("streamSettings", streamSettings)
-            put("tag", "proxy")
-        }
-
-        // direct
         val direct = buildJsonObject {
-            put("protocol", "freedom")
+            put("type", "direct")
             put("tag", "direct")
         }
 
-        // کل کانفیگ با مسیر لاگ
-        val config = buildJsonObject {
-            put("log", buildJsonObject {
-                put("loglevel", "debug")
-                put("access", accessLog)
-                put("error", errorLog)
-            })
+        return buildJsonObject {
+            put("log", buildJsonObject { put("level", "debug") })
             put("inbounds", JsonArray(listOf(inbound)))
             put("outbounds", JsonArray(listOf(outbound, direct)))
-        }
-
-        return config.toString()
+            put("route", buildJsonObject {
+                put("auto_detect_interface", true)
+                put("final", "direct")
+            })
+        }.toString()
     }
 
     fun startFronting() { /* TODO */ }

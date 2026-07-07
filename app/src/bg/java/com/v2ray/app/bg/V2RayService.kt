@@ -29,7 +29,7 @@ class V2RayService : VpnService() {
         const val NOTIFICATION_ID = 1001
         const val CHANNEL_ID = "v2ray_channel"
         const val EXTRA_CONFIG = "config"
-        const val EXTRA_PROFILE = "profile" // new: serialized Profile
+        const val EXTRA_PROFILE = "profile"
         const val EXTRA_PROFILE_ID = "profile_id"
 
         var killSwitchEnabled = false
@@ -70,7 +70,6 @@ class V2RayService : VpnService() {
                         startVpn(profile = profile, profileId = profileId)
                     } else if (config != null) {
                         Logger.i("Received CONNECT with config (fallback)")
-                        // Fallback: still support old config
                         startVpn(config = config, profileId = profileId)
                     } else {
                         Logger.e("No profile or config provided")

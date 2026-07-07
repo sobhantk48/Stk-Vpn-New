@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.v2ray.app.bg.V2RayService
+import com.v2ray.app.data.Profile
 import com.v2ray.app.navigation.AppNavigation
 import com.v2ray.app.ui.theme.V2rayAppTheme
 import com.v2ray.app.viewmodel.MainViewModel
@@ -58,11 +59,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    fun startVpnService(config: String, profileId: String) {
+    fun startVpnService(profile: Profile) {
         val intent = Intent(this, V2RayService::class.java).apply {
             action = V2RayService.ACTION_CONNECT
-            putExtra(V2RayService.EXTRA_CONFIG, config)
-            putExtra(V2RayService.EXTRA_PROFILE_ID, profileId)
+            putExtra(V2RayService.EXTRA_PROFILE, profile)
+            putExtra(V2RayService.EXTRA_PROFILE_ID, profile.id)
         }
         startService(intent)
     }

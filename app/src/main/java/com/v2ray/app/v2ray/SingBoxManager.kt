@@ -38,6 +38,39 @@ class SingBoxManager(private val context: Context) {
                 outboundJson.put("tag", "proxy")
             }
 
+            // اگر Domain Fronting فعال باشد، Host Header را در outbound تنظیم می‌کنیم
+            if (profile.frontingDomain.isNotBlank()) {
+                // برای پروتکل‌های مبتنی بر TLS، SNI را تغییر می‌دهیم
+                val streamSettings = outboundJson.optJSONObject("streamSettings")
+                if (streamSettings != null) {
+                    if (streamSettings.has("tlsSettings")) {
+                        val tlsSettings = streamSettings.getJSONObject("tlsSettings")
+                        tlsSettings.put("serverName", profile.frontingDomain)
+                    }
+                    if (streamSettings.has("wsSettings")) {
+                        val wsSettings = streamSettings.getJSONObject("wsSettings")
+                        if (wsSettings.has("headers")) {
+                            val headers = wsSettings.getJSONObject("headers")
+                            headers.put("Host", profile.frontingDomain)
+                        } else {
+                            wsSettings.put("headers", JSONObject().apply {
+                                put("Host", profile.frontingDomain)
+                            })
+                        }
+                    }
+                    // برای پروتکل‌های مبتنی بر HTTP/2 و gRPC
+                    if (streamSettings.has("httpSettings")) {
+                        val httpSettings = streamSettings.getJSONObject("httpSettings")
+                        if (httpSettings.has("host")) {
+                            httpSettings.put("host", JSONArray(listOf(profile.frontingDomain)))
+                        } else {
+                            httpSettings.put("host", JSONArray(listOf(profile.frontingDomain)))
+                        }
+                    }
+                }
+                Log.d(TAG, "Domain Fronting applied: ${profile.frontingDomain}")
+            }
+
             val outboundsArray = root.getJSONArray("outbounds")
             if (outboundsArray.length() > 0) {
                 outboundsArray.put(0, outboundJson)

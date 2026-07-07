@@ -72,11 +72,17 @@ data class Profile(
     val awgI2: String? = null,
     val awgI3: String? = null,
     val awgI4: String? = null,
-    val awgI5: String? = null
+    val awgI5: String? = null,
+    // Domain Fronting
+    val frontingDomain: String = ""
 ) : Serializable {
 
     fun getEffectiveSni(): String {
         return if (customSni.isNotBlank()) customSni else sni
+    }
+
+    fun getEffectiveHost(): String {
+        return if (frontingDomain.isNotBlank()) frontingDomain else host
     }
 
     fun toV2RayConfig(): String {
@@ -284,6 +290,10 @@ data class Profile(
                         awgI3?.takeIf { it.isNotBlank() }?.let { put("i3", it) }
                         awgI4?.takeIf { it.isNotBlank() }?.let { put("i4", it) }
                         awgI5?.takeIf { it.isNotBlank() }?.let { put("i5", it) }
+                        // Domain Fronting: اگر frontingDomain تنظیم شده باشد، Host Header را تغییر می‌دهیم
+                        if (frontingDomain.isNotBlank()) {
+                            put("host", frontingDomain)
+                        }
                     }
                 )))
             })
@@ -294,10 +304,13 @@ data class Profile(
         return buildJsonObject {
             put("network", network.ifEmpty { "tcp" })
 
-            if (sni.isNotBlank() || customSni.isNotBlank()) {
+            // Domain Fronting: اگر frontingDomain تنظیم شده باشد، SNI را با آن جایگزین می‌کنیم
+            val effectiveSni = if (frontingDomain.isNotBlank()) frontingDomain else getEffectiveSni()
+
+            if (sni.isNotBlank() || customSni.isNotBlank() || frontingDomain.isNotBlank()) {
                 put("security", "tls")
                 put("tlsSettings", buildJsonObject {
-                    put("serverName", getEffectiveSni().ifEmpty { address })
+                    put("serverName", effectiveSni.ifEmpty { address })
                     put("fingerprint", fingerprint)
                     if (allowInsecure) put("allowInsecure", true)
                 })
@@ -306,9 +319,13 @@ data class Profile(
             if (network == "ws") {
                 put("wsSettings", buildJsonObject {
                     put("path", path.ifEmpty { "/" })
-                    if (host.isNotBlank()) {
+                    if (host.isNotBlank() || frontingDomain.isNotBlank()) {
                         put("headers", buildJsonObject {
-                            put("Host", host)
+                            if (frontingDomain.isNotBlank()) {
+                                put("Host", frontingDomain)
+                            } else if (host.isNotBlank()) {
+                                put("Host", host)
+                            }
                         })
                     }
                 })
@@ -622,11 +639,8 @@ data class Profile(
 
         private fun parseAmneziaLink(link: String): Profile? {
             try {
-                // حذف "vpn://"
                 val b64 = link.substringAfter("vpn://")
-                // دیکود base64url (با padding)
                 val bytes = Base64.decode(b64, Base64.URL_SAFE)
-                // تلاش برای inflate (qCompress)
                 var jsonString: String? = null
                 if (bytes.size > 4) {
                     val claimed = ((bytes[0].toInt() and 0xFF) shl 24) or
@@ -641,14 +655,12 @@ data class Profile(
                     }
                 }
                 if (jsonString == null) {
-                    // fallback: فرض کنیم خود bytes JSON هست
                     jsonString = String(bytes, Charsets.UTF_8)
                 }
                 if (jsonString == null) return null
 
                 val root = Json.parseToJsonElement(jsonString).jsonObject
                 val containers = root["containers"]?.jsonArray ?: return null
-                // اولین کانتینری که AWG یا WireGuard داشته باشه رو انتخاب می‌کنیم
                 for (container in containers) {
                     val obj = container.jsonObject
                     val awg = obj["awg"]?.jsonObject
@@ -661,7 +673,6 @@ data class Profile(
                         else -> null
                     }
                     if (ini != null && ini.contains("[Interface]") && ini.contains("[Peer]")) {
-                        // پارس INI به Profile
                         return parseAwgIni(ini, root)
                     }
                 }
@@ -764,7 +775,6 @@ data class Profile(
                 val dns1 = root?.get("dns1")?.jsonPrimitive?.content ?: ""
                 val dns2 = root?.get("dns2")?.jsonPrimitive?.content ?: ""
 
-                // جایگزینی DNS placeholders
                 if (address.contains("\$PRIMARY_DNS") && dns1.isNotBlank()) {
                     address = address.replace("\$PRIMARY_DNS", dns1)
                 }

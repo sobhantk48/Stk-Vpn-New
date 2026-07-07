@@ -53,7 +53,7 @@ android {
 
     buildFeatures {
         compose true
-        aidl true          // ✅ فقط این خط کافی است!
+        aidl true          // ✅ مطابق SFA و NekoBox
     }
 
     composeOptions {

@@ -1,92 +1,87 @@
-import androidx.room.Entity
-import androidx.room.PrimaryKey
 package com.v2ray.app.data
 
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+import androidx.room.Ignore
 import android.util.Base64
 import android.net.Uri
 import java.io.Serializable
-import kotlinx.serialization.Serializable as KSerializable
 import kotlinx.serialization.json.*
 import java.io.ByteArrayInputStream
 import java.util.zip.InflaterInputStream
 
-@KSerializable
 @Entity(tableName = "profiles")
-data class Profile(@PrimaryKey val id: String = java.util.UUID.randomUUID().toString(),
-    val id: String = java.util.UUID.randomUUID().toString(),
-    val name: String,
-    val type: String,
-    val address: String,
-    val port: Int,
-    val uuid: String = "",
-    val security: String = "auto",
-    val encryption: String = "none",
-    val flow: String = "",
-    val sni: String = "",
-    val customSni: String = "",
-    val fingerprint: String = "chrome",
-    val realityPublicKey: String = "",
-    val realityShortId: String = "",
-    val selected: Boolean = false,
-    val ping: Int = 0,
-    val country: String = "",
-    val city: String = "",
-    val network: String = "tcp",
-    val path: String = "",
-    val host: String = "",
-    val alpn: String = "",
-    val allowInsecure: Boolean = false,
+class Profile(
+    @PrimaryKey var id: String = java.util.UUID.randomUUID().toString(),
+    var name: String = "",
+    var type: String = "VLESS",
+    var address: String = "",
+    var port: Int = 443,
+    var uuid: String = "",
+    var security: String = "auto",
+    var encryption: String = "none",
+    var flow: String = "",
+    var sni: String = "",
+    var customSni: String = "",
+    var fingerprint: String = "chrome",
+    var realityPublicKey: String = "",
+    var realityShortId: String = "",
+    var network: String = "tcp",
+    var path: String = "",
+    var host: String = "",
+    var alpn: String = "",
+    var allowInsecure: Boolean = false,
     // Hysteria2 fields
-    val hysteriaProtocolVersion: Int = 2,
-    val hysteriaAuthPayload: String = "",
-    val hysteriaObfs: String = "",
-    val hysteriaSni: String = "",
-    val hysteriaAllowInsecure: Boolean = false,
-    val hysteriaUploadMbps: Int = 0,
-    val hysteriaDownloadMbps: Int = 0,
-    val hysteriaServerPorts: String = "",
+    var hysteriaProtocolVersion: Int = 2,
+    var hysteriaAuthPayload: String = "",
+    var hysteriaObfs: String = "",
+    var hysteriaSni: String = "",
+    var hysteriaAllowInsecure: Boolean = false,
+    var hysteriaUploadMbps: Int = 0,
+    var hysteriaDownloadMbps: Int = 0,
+    var hysteriaServerPorts: String = "",
     // TUIC fields
-    val tuicToken: String = "",
-    val tuicUuid: String = "",
-    val tuicCongestionController: String = "cubic",
-    val tuicUdpRelayMode: String = "native",
-    val tuicReduceRTT: Boolean = false,
-    val tuicDisableSNI: Boolean = false,
+    var tuicToken: String = "",
+    var tuicUuid: String = "",
+    var tuicCongestionController: String = "cubic",
+    var tuicUdpRelayMode: String = "native",
+    var tuicReduceRTT: Boolean = false,
+    var tuicDisableSNI: Boolean = false,
     // WireGuard fields
-    val wgLocalAddress: String = "",
-    val wgPrivateKey: String = "",
-    val wgPeerPublicKey: String = "",
-    val wgPreSharedKey: String = "",
-    val wgMtu: Int = 1420,
-    val wgReserved: String = "",
-    // AWG fields (AmneziaWG)
-    val awgJc: Int? = null,
-    val awgJmin: Int? = null,
-    val awgJmax: Int? = null,
-    val awgS1: Int? = null,
-    val awgS2: Int? = null,
-    val awgS3: Int? = null,
-    val awgS4: Int? = null,
-    val awgH1: String? = null,
-    val awgH2: String? = null,
-    val awgH3: String? = null,
-    val awgH4: String? = null,
-    val awgI1: String? = null,
-    val awgI2: String? = null,
-    val awgI3: String? = null,
-    val awgI4: String? = null,
-    val awgI5: String? = null,
+    var wgLocalAddress: String = "",
+    var wgPrivateKey: String = "",
+    var wgPeerPublicKey: String = "",
+    var wgPreSharedKey: String = "",
+    var wgMtu: Int = 1420,
+    var wgReserved: String = "",
+    // AWG fields
+    var awgJc: Int? = null,
+    var awgJmin: Int? = null,
+    var awgJmax: Int? = null,
+    var awgS1: Int? = null,
+    var awgS2: Int? = null,
+    var awgS3: Int? = null,
+    var awgS4: Int? = null,
+    var awgH1: String? = null,
+    var awgH2: String? = null,
+    var awgH3: String? = null,
+    var awgH4: String? = null,
+    var awgI1: String? = null,
+    var awgI2: String? = null,
+    var awgI3: String? = null,
+    var awgI4: String? = null,
+    var awgI5: String? = null,
     // Domain Fronting
-    val frontingDomain: String = ""
+    var frontingDomain: String = "",
+    // Non-database fields (marked with @Ignore)
+    @Ignore var selected: Boolean = false,
+    @Ignore var ping: Int = 0,
+    @Ignore var country: String = "",
+    @Ignore var city: String = ""
 ) : Serializable {
 
-    fun getEffectiveSni(): String {
-        return if (customSni.isNotBlank()) customSni else sni
-    }
-
-    fun getEffectiveHost(): String {
-        return if (frontingDomain.isNotBlank()) frontingDomain else host
-    }
+    fun getEffectiveSni(): String = if (customSni.isNotBlank()) customSni else sni
+    fun getEffectiveHost(): String = if (frontingDomain.isNotBlank()) frontingDomain else host
 
     fun toV2RayConfig(): String {
         val outbound = when (type.uppercase()) {
@@ -103,236 +98,215 @@ data class Profile(@PrimaryKey val id: String = java.util.UUID.randomUUID().toSt
         return outbound.toString()
     }
 
-    private fun buildVlessJson(): JsonObject {
-        return buildJsonObject {
-            put("protocol", "vless")
-            put("settings", buildJsonObject {
-                put("vnext", JsonArray(listOf(
-                    buildJsonObject {
-                        put("address", address)
-                        put("port", port)
-                        put("users", JsonArray(listOf(
-                            buildJsonObject {
-                                put("id", uuid.ifEmpty { "00000000-0000-0000-0000-000000000000" })
-                                put("flow", flow.ifEmpty { "none" })
-                                put("encryption", "none")
-                            }
-                        )))
-                    }
-                )))
-            })
-            put("streamSettings", buildStreamSettings())
-        }
+    private fun buildVlessJson(): JsonObject = buildJsonObject {
+        put("protocol", "vless")
+        put("settings", buildJsonObject {
+            put("vnext", JsonArray(listOf(
+                buildJsonObject {
+                    put("address", address)
+                    put("port", port)
+                    put("users", JsonArray(listOf(
+                        buildJsonObject {
+                            put("id", uuid.ifEmpty { "00000000-0000-0000-0000-000000000000" })
+                            put("flow", flow.ifEmpty { "none" })
+                            put("encryption", "none")
+                        }
+                    )))
+                }
+            )))
+        })
+        put("streamSettings", buildStreamSettings())
     }
 
-    private fun buildVmessJson(): JsonObject {
-        return buildJsonObject {
-            put("protocol", "vmess")
-            put("settings", buildJsonObject {
-                put("vnext", JsonArray(listOf(
-                    buildJsonObject {
-                        put("address", address)
-                        put("port", port)
-                        put("users", JsonArray(listOf(
-                            buildJsonObject {
-                                put("id", uuid.ifEmpty { "00000000-0000-0000-0000-000000000000" })
-                                put("security", "auto")
-                            }
-                        )))
-                    }
-                )))
-            })
-            put("streamSettings", buildStreamSettings())
-        }
+    private fun buildVmessJson(): JsonObject = buildJsonObject {
+        put("protocol", "vmess")
+        put("settings", buildJsonObject {
+            put("vnext", JsonArray(listOf(
+                buildJsonObject {
+                    put("address", address)
+                    put("port", port)
+                    put("users", JsonArray(listOf(
+                        buildJsonObject {
+                            put("id", uuid.ifEmpty { "00000000-0000-0000-0000-000000000000" })
+                            put("security", "auto")
+                        }
+                    )))
+                }
+            )))
+        })
+        put("streamSettings", buildStreamSettings())
     }
 
-    private fun buildTrojanJson(): JsonObject {
-        return buildJsonObject {
-            put("protocol", "trojan")
-            put("settings", buildJsonObject {
-                put("servers", JsonArray(listOf(
-                    buildJsonObject {
-                        put("address", address)
-                        put("port", port)
-                        put("password", uuid.ifEmpty { "password" })
-                        put("flow", flow)
-                    }
-                )))
-            })
-            put("streamSettings", buildStreamSettings())
-        }
+    private fun buildTrojanJson(): JsonObject = buildJsonObject {
+        put("protocol", "trojan")
+        put("settings", buildJsonObject {
+            put("servers", JsonArray(listOf(
+                buildJsonObject {
+                    put("address", address)
+                    put("port", port)
+                    put("password", uuid.ifEmpty { "password" })
+                    put("flow", flow)
+                }
+            )))
+        })
+        put("streamSettings", buildStreamSettings())
     }
 
-    private fun buildShadowsocksJson(): JsonObject {
-        return buildJsonObject {
-            put("protocol", "shadowsocks")
-            put("settings", buildJsonObject {
-                put("servers", JsonArray(listOf(
-                    buildJsonObject {
-                        put("address", address)
-                        put("port", port)
-                        put("method", encryption.ifEmpty { "chacha20-ietf-poly1305" })
-                        put("password", uuid.ifEmpty { "password" })
-                    }
-                )))
-            })
-        }
+    private fun buildShadowsocksJson(): JsonObject = buildJsonObject {
+        put("protocol", "shadowsocks")
+        put("settings", buildJsonObject {
+            put("servers", JsonArray(listOf(
+                buildJsonObject {
+                    put("address", address)
+                    put("port", port)
+                    put("method", encryption.ifEmpty { "chacha20-ietf-poly1305" })
+                    put("password", uuid.ifEmpty { "password" })
+                }
+            )))
+        })
     }
 
-    private fun buildHysteria2Json(): JsonObject {
-        return buildJsonObject {
-            put("protocol", "hysteria2")
-            put("settings", buildJsonObject {
-                put("servers", JsonArray(listOf(
-                    buildJsonObject {
-                        put("address", address)
-                        put("port", port)
-                        put("password", hysteriaAuthPayload.ifEmpty { uuid })
-                        put("sni", hysteriaSni.ifEmpty { address })
-                        put("allowInsecure", hysteriaAllowInsecure)
-                        if (hysteriaObfs.isNotBlank()) {
-                            put("obfs", hysteriaObfs)
-                        }
-                        if (hysteriaUploadMbps > 0) {
-                            put("uploadMbps", hysteriaUploadMbps)
-                        }
-                        if (hysteriaDownloadMbps > 0) {
-                            put("downloadMbps", hysteriaDownloadMbps)
-                        }
+    private fun buildHysteria2Json(): JsonObject = buildJsonObject {
+        put("protocol", "hysteria2")
+        put("settings", buildJsonObject {
+            put("servers", JsonArray(listOf(
+                buildJsonObject {
+                    put("address", address)
+                    put("port", port)
+                    put("password", hysteriaAuthPayload.ifEmpty { uuid })
+                    put("sni", hysteriaSni.ifEmpty { address })
+                    put("allowInsecure", hysteriaAllowInsecure)
+                    if (hysteriaObfs.isNotBlank()) {
+                        put("obfs", hysteriaObfs)
                     }
-                )))
-            })
-        }
+                    if (hysteriaUploadMbps > 0) {
+                        put("uploadMbps", hysteriaUploadMbps)
+                    }
+                    if (hysteriaDownloadMbps > 0) {
+                        put("downloadMbps", hysteriaDownloadMbps)
+                    }
+                }
+            )))
+        })
     }
 
-    private fun buildTuicJson(): JsonObject {
-        return buildJsonObject {
-            put("protocol", "tuic")
-            put("settings", buildJsonObject {
-                put("servers", JsonArray(listOf(
-                    buildJsonObject {
-                        put("address", address)
-                        put("port", port)
-                        put("uuid", tuicUuid.ifEmpty { uuid })
-                        put("password", tuicToken.ifEmpty { "password" })
-                        put("sni", sni.ifEmpty { address })
-                        put("allowInsecure", allowInsecure)
-                        if (tuicCongestionController.isNotBlank()) {
-                            put("congestionController", tuicCongestionController)
-                        }
-                        if (tuicUdpRelayMode.isNotBlank()) {
-                            put("udpRelayMode", tuicUdpRelayMode)
-                        }
-                        if (tuicReduceRTT) {
-                            put("reduceRTT", true)
-                        }
-                        if (tuicDisableSNI) {
-                            put("disableSNI", true)
-                        }
+    private fun buildTuicJson(): JsonObject = buildJsonObject {
+        put("protocol", "tuic")
+        put("settings", buildJsonObject {
+            put("servers", JsonArray(listOf(
+                buildJsonObject {
+                    put("address", address)
+                    put("port", port)
+                    put("uuid", tuicUuid.ifEmpty { uuid })
+                    put("password", tuicToken.ifEmpty { "password" })
+                    put("sni", sni.ifEmpty { address })
+                    put("allowInsecure", allowInsecure)
+                    if (tuicCongestionController.isNotBlank()) {
+                        put("congestionController", tuicCongestionController)
                     }
-                )))
-            })
-        }
+                    if (tuicUdpRelayMode.isNotBlank()) {
+                        put("udpRelayMode", tuicUdpRelayMode)
+                    }
+                    if (tuicReduceRTT) {
+                        put("reduceRTT", true)
+                    }
+                    if (tuicDisableSNI) {
+                        put("disableSNI", true)
+                    }
+                }
+            )))
+        })
     }
 
-    private fun buildWireGuardJson(): JsonObject {
-        return buildJsonObject {
-            put("protocol", "wireguard")
-            put("settings", buildJsonObject {
-                put("servers", JsonArray(listOf(
-                    buildJsonObject {
-                        put("address", address)
-                        put("port", port)
-                        put("localAddress", wgLocalAddress.ifEmpty { "10.0.0.2/32" })
-                        put("privateKey", wgPrivateKey)
-                        put("peerPublicKey", wgPeerPublicKey)
-                        if (wgPreSharedKey.isNotBlank()) {
-                            put("preSharedKey", wgPreSharedKey)
-                        }
-                        if (wgMtu > 0) {
-                            put("mtu", wgMtu)
-                        }
-                        if (wgReserved.isNotBlank()) {
-                            put("reserved", wgReserved)
-                        }
+    private fun buildWireGuardJson(): JsonObject = buildJsonObject {
+        put("protocol", "wireguard")
+        put("settings", buildJsonObject {
+            put("servers", JsonArray(listOf(
+                buildJsonObject {
+                    put("address", address)
+                    put("port", port)
+                    put("localAddress", wgLocalAddress.ifEmpty { "10.0.0.2/32" })
+                    put("privateKey", wgPrivateKey)
+                    put("peerPublicKey", wgPeerPublicKey)
+                    if (wgPreSharedKey.isNotBlank()) {
+                        put("preSharedKey", wgPreSharedKey)
                     }
-                )))
-            })
-        }
+                    if (wgMtu > 0) {
+                        put("mtu", wgMtu)
+                    }
+                    if (wgReserved.isNotBlank()) {
+                        put("reserved", wgReserved)
+                    }
+                }
+            )))
+        })
     }
 
-    private fun buildAwgJson(): JsonObject {
-        return buildJsonObject {
-            put("protocol", "wireguard") // AWG همان WireGuard است با پارامترهای اضافی
-            put("settings", buildJsonObject {
-                put("servers", JsonArray(listOf(
-                    buildJsonObject {
-                        put("address", address)
-                        put("port", port)
-                        put("localAddress", wgLocalAddress.ifEmpty { "10.0.0.2/32" })
-                        put("privateKey", wgPrivateKey)
-                        put("peerPublicKey", wgPeerPublicKey)
-                        if (wgPreSharedKey.isNotBlank()) {
-                            put("preSharedKey", wgPreSharedKey)
-                        }
-                        put("mtu", if (wgMtu > 0 && wgMtu <= 1280) wgMtu else 1280) // AWG MTU clamp
-                        // AWG پارامترهای خاص
-                        awgJc?.let { put("jc", it) }
-                        awgJmin?.let { put("jmin", it) }
-                        awgJmax?.let { put("jmax", it) }
-                        awgS1?.let { put("s1", it) }
-                        awgS2?.let { put("s2", it) }
-                        awgS3?.let { put("s3", it) }
-                        awgS4?.let { put("s4", it) }
-                        awgH1?.takeIf { it.isNotBlank() }?.let { put("h1", it) }
-                        awgH2?.takeIf { it.isNotBlank() }?.let { put("h2", it) }
-                        awgH3?.takeIf { it.isNotBlank() }?.let { put("h3", it) }
-                        awgH4?.takeIf { it.isNotBlank() }?.let { put("h4", it) }
-                        awgI1?.takeIf { it.isNotBlank() }?.let { put("i1", it) }
-                        awgI2?.takeIf { it.isNotBlank() }?.let { put("i2", it) }
-                        awgI3?.takeIf { it.isNotBlank() }?.let { put("i3", it) }
-                        awgI4?.takeIf { it.isNotBlank() }?.let { put("i4", it) }
-                        awgI5?.takeIf { it.isNotBlank() }?.let { put("i5", it) }
-                        // Domain Fronting: اگر frontingDomain تنظیم شده باشد، Host Header را تغییر می‌دهیم
+    private fun buildAwgJson(): JsonObject = buildJsonObject {
+        put("protocol", "wireguard")
+        put("settings", buildJsonObject {
+            put("servers", JsonArray(listOf(
+                buildJsonObject {
+                    put("address", address)
+                    put("port", port)
+                    put("localAddress", wgLocalAddress.ifEmpty { "10.0.0.2/32" })
+                    put("privateKey", wgPrivateKey)
+                    put("peerPublicKey", wgPeerPublicKey)
+                    if (wgPreSharedKey.isNotBlank()) {
+                        put("preSharedKey", wgPreSharedKey)
+                    }
+                    put("mtu", if (wgMtu > 0 && wgMtu <= 1280) wgMtu else 1280)
+                    awgJc?.let { put("jc", it) }
+                    awgJmin?.let { put("jmin", it) }
+                    awgJmax?.let { put("jmax", it) }
+                    awgS1?.let { put("s1", it) }
+                    awgS2?.let { put("s2", it) }
+                    awgS3?.let { put("s3", it) }
+                    awgS4?.let { put("s4", it) }
+                    awgH1?.takeIf { it.isNotBlank() }?.let { put("h1", it) }
+                    awgH2?.takeIf { it.isNotBlank() }?.let { put("h2", it) }
+                    awgH3?.takeIf { it.isNotBlank() }?.let { put("h3", it) }
+                    awgH4?.takeIf { it.isNotBlank() }?.let { put("h4", it) }
+                    awgI1?.takeIf { it.isNotBlank() }?.let { put("i1", it) }
+                    awgI2?.takeIf { it.isNotBlank() }?.let { put("i2", it) }
+                    awgI3?.takeIf { it.isNotBlank() }?.let { put("i3", it) }
+                    awgI4?.takeIf { it.isNotBlank() }?.let { put("i4", it) }
+                    awgI5?.takeIf { it.isNotBlank() }?.let { put("i5", it) }
+                    if (frontingDomain.isNotBlank()) {
+                        put("host", frontingDomain)
+                    }
+                }
+            )))
+        })
+    }
+
+    private fun buildStreamSettings(): JsonObject = buildJsonObject {
+        put("network", network.ifEmpty { "tcp" })
+
+        val effectiveSni = if (frontingDomain.isNotBlank()) frontingDomain else getEffectiveSni()
+
+        if (sni.isNotBlank() || customSni.isNotBlank() || frontingDomain.isNotBlank()) {
+            put("security", "tls")
+            put("tlsSettings", buildJsonObject {
+                put("serverName", effectiveSni.ifEmpty { address })
+                put("fingerprint", fingerprint)
+                if (allowInsecure) put("allowInsecure", true)
+            })
+        }
+
+        if (network == "ws") {
+            put("wsSettings", buildJsonObject {
+                put("path", path.ifEmpty { "/" })
+                if (host.isNotBlank() || frontingDomain.isNotBlank()) {
+                    put("headers", buildJsonObject {
                         if (frontingDomain.isNotBlank()) {
-                            put("host", frontingDomain)
+                            put("Host", frontingDomain)
+                        } else if (host.isNotBlank()) {
+                            put("Host", host)
                         }
-                    }
-                )))
+                    })
+                }
             })
-        }
-    }
-
-    private fun buildStreamSettings(): JsonObject {
-        return buildJsonObject {
-            put("network", network.ifEmpty { "tcp" })
-
-            // Domain Fronting: اگر frontingDomain تنظیم شده باشد، SNI را با آن جایگزین می‌کنیم
-            val effectiveSni = if (frontingDomain.isNotBlank()) frontingDomain else getEffectiveSni()
-
-            if (sni.isNotBlank() || customSni.isNotBlank() || frontingDomain.isNotBlank()) {
-                put("security", "tls")
-                put("tlsSettings", buildJsonObject {
-                    put("serverName", effectiveSni.ifEmpty { address })
-                    put("fingerprint", fingerprint)
-                    if (allowInsecure) put("allowInsecure", true)
-                })
-            }
-
-            if (network == "ws") {
-                put("wsSettings", buildJsonObject {
-                    put("path", path.ifEmpty { "/" })
-                    if (host.isNotBlank() || frontingDomain.isNotBlank()) {
-                        put("headers", buildJsonObject {
-                            if (frontingDomain.isNotBlank()) {
-                                put("Host", frontingDomain)
-                            } else if (host.isNotBlank()) {
-                                put("Host", host)
-                            }
-                        })
-                    }
-                })
-            }
         }
     }
 
@@ -594,7 +568,6 @@ data class Profile(@PrimaryKey val id: String = java.util.UUID.randomUUID().toSt
             val localAddress = params["address"] ?: "10.0.0.2/32"
             val mtu = params["mtu"]?.toIntOrNull()?.let { if (it > 1280) 1280 else it } ?: 1280
 
-            // پارامترهای AWG
             val jc = params["jc"]?.toIntOrNull()
             val jmin = params["jmin"]?.toIntOrNull()
             val jmax = params["jmax"]?.toIntOrNull()
@@ -657,11 +630,7 @@ data class Profile(@PrimaryKey val id: String = java.util.UUID.randomUUID().toSt
                         } catch (_: Exception) { }
                     }
                 }
-                if (jsonString == null) {
-                    jsonString = String(bytes, Charsets.UTF_8)
-                }
-                if (jsonString == null) return null
-
+                jsonString = jsonString ?: String(bytes, Charsets.UTF_8)
                 val root = Json.parseToJsonElement(jsonString).jsonObject
                 val containers = root["containers"]?.jsonArray ?: return null
                 for (container in containers) {
@@ -680,9 +649,7 @@ data class Profile(@PrimaryKey val id: String = java.util.UUID.randomUUID().toSt
                     }
                 }
                 return null
-            } catch (_: Exception) {
-                return null
-            }
+            } catch (_: Exception) { null }
         }
 
         private fun parseAwgIni(ini: String, root: JsonObject? = null): Profile? {
@@ -812,9 +779,7 @@ data class Profile(@PrimaryKey val id: String = java.util.UUID.randomUUID().toSt
                     awgI4 = i4,
                     awgI5 = i5
                 )
-            } catch (_: Exception) {
-                return null
-            }
+            } catch (_: Exception) { null }
         }
     }
 }

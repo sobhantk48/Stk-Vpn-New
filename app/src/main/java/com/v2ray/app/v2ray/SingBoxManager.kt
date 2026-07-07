@@ -29,7 +29,7 @@ class SingBoxManager(private val context: Context) {
 
     fun buildSingBoxConfig(profile: Profile): String {
         return try {
-            Log.d(TAG, "buildSingBoxConfig: building config for ${profile.name}")
+            Log.d(TAG, "buildSingBoxConfig: starting for ${profile.name}")
             val templateJson = context.assets.open("singbox_config.json")
                 .bufferedReader().use { it.readText() }
             val root = JSONObject(templateJson)
@@ -39,7 +39,6 @@ class SingBoxManager(private val context: Context) {
                 outboundJson.put("tag", "proxy")
             }
 
-            // Domain Fronting
             if (profile.frontingDomain.isNotBlank()) {
                 val streamSettings = outboundJson.optJSONObject("streamSettings")
                 if (streamSettings != null) {
@@ -100,7 +99,7 @@ class SingBoxManager(private val context: Context) {
             }
 
             val result = root.toString(2)
-            Log.d(TAG, "buildSingBoxConfig: config built successfully (length=${result.length})")
+            Log.d(TAG, "buildSingBoxConfig: success, length=${result.length}")
             result
         } catch (e: Exception) {
             Log.e(TAG, "buildSingBoxConfig failed", e)
@@ -146,9 +145,8 @@ class SingBoxManager(private val context: Context) {
     suspend fun startV2Ray(configJson: String, vpnFd: Int): Result<Unit> =
         withContext(Dispatchers.IO) {
             try {
-                Log.d(TAG, "startV2Ray: called with vpnFd=$vpnFd")
-                Log.d(TAG, "startV2Ray: config length=${configJson.length}")
-                Log.d(TAG, "startV2Ray: config preview=${configJson.take(200)}")
+                Log.d(TAG, "startV2Ray: vpnFd=$vpnFd, config length=${configJson.length}")
+                Log.d(TAG, "startV2Ray: config preview=${configJson.take(300)}")
 
                 if (isRunning) {
                     Log.d(TAG, "startV2Ray: already running, stopping first")
@@ -160,11 +158,11 @@ class SingBoxManager(private val context: Context) {
                     putExtra("tun_fd", vpnFd)
                 }
                 context.startService(intent)
-                Log.d(TAG, "startV2Ray: BoxService started successfully")
+                Log.d(TAG, "startV2Ray: BoxService started")
 
                 isRunning = true
                 _coreState.update { CoreState.CONNECTED }
-                Log.d(TAG, "startV2Ray: V2Ray started successfully")
+                Log.d(TAG, "startV2Ray: success")
                 Result.success(Unit)
             } catch (e: Exception) {
                 Log.e(TAG, "startV2Ray: failed", e)
@@ -183,7 +181,7 @@ class SingBoxManager(private val context: Context) {
                 context.stopService(Intent(context, BoxService::class.java))
                 isRunning = false
                 _coreState.update { CoreState.DISCONNECTED }
-                Log.d(TAG, "stopV2Ray: V2Ray stopped")
+                Log.d(TAG, "stopV2Ray: success")
                 Result.success(Unit)
             } catch (e: Exception) {
                 Log.e(TAG, "stopV2Ray failed", e)

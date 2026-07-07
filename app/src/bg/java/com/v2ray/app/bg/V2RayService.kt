@@ -13,7 +13,6 @@ import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.v2ray.app.BuildConfig
 import com.v2ray.app.MainActivity
 import com.v2ray.app.R
 import com.v2ray.app.model.SplitMode
@@ -180,12 +179,12 @@ class V2RayService : VpnService() {
     }
 
     override fun protect(socket: Int): Boolean {
-        if (BuildConfig.DEBUG) return true
-        return if (killSwitchEnabled && !isRunning) {
-            false
-        } else {
-            super.protect(socket)
+        // در صورت فعال بودن Kill Switch و عدم اتصال، ترافیک را مسدود کن
+        if (killSwitchEnabled && !isRunning) {
+            return false
         }
+        // در غیر این صورت، محافظت کن
+        return super.protect(socket)
     }
 
     private fun createNotificationChannel() {

@@ -5,18 +5,15 @@ import android.content.Intent
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.viewModels
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.v2ray.app.bg.V2RayService
 import com.v2ray.app.navigation.AppNavigation
 import com.v2ray.app.ui.theme.V2rayAppTheme
 import com.v2ray.app.viewmodel.MainViewModel
@@ -25,8 +22,7 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    private val viewModel: MainViewModel by viewModels()
-    private val TAG = "MainActivity"
+    private val viewModel: MainViewModel by hiltViewModel()
 
     private val vpnPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -40,47 +36,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         viewModel.setActivity(this)
-
         setContent {
             V2rayAppTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    // نمایش خطا با یک state ساده
-                    var errorMessage by remember { mutableStateOf<String?>(null) }
-
-                    if (errorMessage != null) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = "❌ خطا در برنامه",
-                                color = MaterialTheme.colorScheme.error,
-                                fontSize = 20.sp
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = errorMessage ?: "خطای ناشناخته",
-                                color = MaterialTheme.colorScheme.onBackground,
-                                fontSize = 14.sp
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(onClick = { errorMessage = null }) {
-                                Text("تلاش مجدد")
-                            }
-                        }
-                    } else {
-                        // استفاده از AppNavigation بدون try-catch
-                        AppNavigation()
-                    }
+                    AppNavigation(viewModel = viewModel)
                 }
             }
         }
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 200)
         }
@@ -93,5 +56,21 @@ class MainActivity : ComponentActivity() {
         } else {
             viewModel.onVpnPermissionGranted()
         }
+    }
+
+    fun startVpnService(config: String, profileId: String) {
+        val intent = Intent(this, V2RayService::class.java).apply {
+            action = V2RayService.ACTION_CONNECT
+            putExtra(V2RayService.EXTRA_CONFIG, config)
+            putExtra(V2RayService.EXTRA_PROFILE_ID, profileId)
+        }
+        startService(intent)
+    }
+
+    fun stopVpnService() {
+        val intent = Intent(this, V2RayService::class.java).apply {
+            action = V2RayService.ACTION_DISCONNECT
+        }
+        startService(intent)
     }
 }

@@ -62,7 +62,6 @@ android {
     sourceSets {
         main {
             java.srcDirs += 'src/bg/java'
-            aidl.srcDirs = ['src/main/aidl']
         }
     }
 }

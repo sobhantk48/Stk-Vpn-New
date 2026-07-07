@@ -1,4 +1,30 @@
+# Gradle
+.gradle/
+build/
+app/build/
+app/.gradle/
+*.lock
+
+# Android
+local.properties
+*.iml
+.idea/
+*.keystore
+*.jks
+*.txt
+*.zip
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+errors.txt
 keystore_base64.txt
 v2ray-release.keystore
-errors.txt
-*.lock
+stkvpn.zip
+EasySNI/
+
+# GitHub Actions (temporary)
+*.tmp

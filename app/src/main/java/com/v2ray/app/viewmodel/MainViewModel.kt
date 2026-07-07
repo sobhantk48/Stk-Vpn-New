@@ -243,7 +243,7 @@ class MainViewModel @Inject constructor(
     private fun buildXrayConfigFromProfile(profile: Profile): String {
         // ---------- inbound SOCKS ----------
         val inbound = buildJsonObject {
-            put("port", 1080)
+            put("port", 1080) // عدد
             put("protocol", "socks")
             put("settings", buildJsonObject {
                 put("auth", "noauth")
@@ -252,18 +252,19 @@ class MainViewModel @Inject constructor(
         }
 
         // ---------- outbound vless ----------
-        val vnext = buildJsonObject {
-            put("address", profile.address)
-            put("port", profile.port)
-            put("users", JsonArray(listOf(
-                buildJsonObject {
-                    put("id", profile.uuid)
-                    put("flow", profile.flow.ifEmpty { "" })
-                    put("encryption", "none")
-                }
-            )))
+        val user = buildJsonObject {
+            put("id", profile.uuid)
+            put("flow", profile.flow.ifEmpty { "" })
+            put("encryption", "none")
         }
 
+        val vnext = buildJsonObject {
+            put("address", profile.address)
+            put("port", profile.port) // عدد
+            put("users", JsonArray(listOf(user)))
+        }
+
+        // streamSettings
         val streamSettings = buildJsonObject {
             put("network", profile.network.ifEmpty { "tcp" })
             if (profile.sni.isNotBlank() || profile.customSni.isNotBlank()) {
@@ -287,7 +288,7 @@ class MainViewModel @Inject constructor(
         }
 
         val outbound = buildJsonObject {
-            put("protocol", profile.type.lowercase())
+            put("protocol", "vless")
             put("settings", buildJsonObject {
                 put("vnext", JsonArray(listOf(vnext)))
             })
@@ -300,7 +301,13 @@ class MainViewModel @Inject constructor(
             put("tag", "direct")
         }
 
-        // ---------- کل کانفیگ ----------
+        // routing
+        val rule = buildJsonObject {
+            put("type", "field")
+            put("inboundTag", JsonArray(listOf(JsonPrimitive("socks-in"))))
+            put("outboundTag", "proxy")
+        }
+
         val config = buildJsonObject {
             put("log", buildJsonObject {
                 put("loglevel", "warning")
@@ -308,13 +315,7 @@ class MainViewModel @Inject constructor(
             put("inbounds", JsonArray(listOf(inbound)))
             put("outbounds", JsonArray(listOf(outbound, direct)))
             put("routing", buildJsonObject {
-                put("rules", JsonArray(listOf(
-                    buildJsonObject {
-                        put("type", "field")
-                        put("inboundTag", JsonArray(listOf(JsonPrimitive("socks-in"))))
-                        put("outboundTag", "proxy")
-                    }
-                )))
+                put("rules", JsonArray(listOf(rule)))
             })
         }
 

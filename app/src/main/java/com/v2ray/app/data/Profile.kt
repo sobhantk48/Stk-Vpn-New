@@ -74,7 +74,7 @@ class Profile(
     // Domain Fronting
     var frontingDomain: String = "",
     // Non-database fields (marked with @Ignore)
-    @Ignore var selected: Boolean = false,
+    var selected: Boolean = false,
     @Ignore var ping: Int = 0,
     @Ignore var country: String = "",
     @Ignore var city: String = ""

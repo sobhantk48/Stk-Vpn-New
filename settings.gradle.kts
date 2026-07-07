@@ -14,4 +14,3 @@ dependencyResolutionManagement {
 }
 rootProject.name = "Stkvpn"
 include(":app")
-include(":libcore")

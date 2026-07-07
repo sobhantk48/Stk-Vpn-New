@@ -82,11 +82,11 @@ dependencies {
     // SnakeYAML for Clash parser
     implementation("org.yaml:snakeyaml:2.2")
 
+    // Libbox (Sing-box core) - از Maven Central
+    implementation("io.nekohasekai:libbox:1.10.0-alpha.10")
+
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-
-    // Libcore module (professional approach like nekobox)
-    implementation(project(":libcore"))
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

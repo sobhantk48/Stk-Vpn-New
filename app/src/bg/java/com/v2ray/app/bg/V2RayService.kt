@@ -19,9 +19,11 @@ import com.v2ray.app.data.Profile
 import com.v2ray.app.model.SplitMode
 import com.v2ray.app.utils.Logger
 import com.v2ray.app.v2ray.SingBoxManager
+import io.nekohasekai.libbox.PlatformInterface
+import io.nekohasekai.libbox.TunOptions
 import kotlinx.coroutines.*
 
-class V2RayService : VpnService() {
+class V2RayService : VpnService(), PlatformInterface {
     companion object {
         private const val TAG = "V2RayService"
         const val ACTION_CONNECT = "com.v2ray.app.CONNECT"
@@ -41,7 +43,7 @@ class V2RayService : VpnService() {
     private var vpnInterface: ParcelFileDescriptor? = null
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var isRunning = false
-    private val singBoxManager = SingBoxManager(this)
+    private val singBoxManager = SingBoxManager(this, this) // ارسال this به عنوان PlatformInterface
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private val binder = ServiceBinder().apply {
@@ -90,6 +92,102 @@ class V2RayService : VpnService() {
 
     override fun onBind(intent: Intent): IBinder = binder
 
+    // ================== PlatformInterface Implementation ==================
+
+    override fun openTun(options: TunOptions): Int {
+        if (prepare(this) != null) {
+            Logger.e("VPN permission not granted")
+            return -1
+        }
+
+        val builder = Builder()
+            .setSession("V2Ray VPN")
+            .setMtu(options.mtu)
+            .setBlocking(true)
+            .setConfigureIntent(
+                PendingIntent.getActivity(
+                    this,
+                    0,
+                    Intent(this, MainActivity::class.java),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+
+        // اضافه کردن آدرس‌های IPv4
+        options.inet4Address?.forEach { addr ->
+            val parts = addr.split("/")
+            if (parts.size == 2) {
+                builder.addAddress(parts[0], parts[1].toInt())
+            }
+        }
+
+        // اضافه کردن آدرس‌های IPv6
+        options.inet6Address?.forEach { addr ->
+            val parts = addr.split("/")
+            if (parts.size == 2) {
+                builder.addAddress(parts[0], parts[1].toInt())
+            }
+        }
+
+        // اضافه کردن routeها
+        if (options.autoRoute) {
+            options.inet4RouteAddress?.forEach { route ->
+                val parts = route.split("/")
+                if (parts.size == 2) {
+                    builder.addRoute(parts[0], parts[1].toInt())
+                }
+            }
+            options.inet6RouteAddress?.forEach { route ->
+                val parts = route.split("/")
+                if (parts.size == 2) {
+                    builder.addRoute(parts[0], parts[1].toInt())
+                }
+            }
+        } else {
+            builder.addRoute("0.0.0.0", 0)
+        }
+
+        // Split Tunneling
+        if (splitTunnelingEnabled && splitApps.isNotEmpty()) {
+            when (splitMode) {
+                SplitMode.INCLUDE -> {
+                    splitApps.forEach { pkg ->
+                        try {
+                            builder.addDisallowedApplication(pkg)
+                        } catch (_: Exception) {}
+                    }
+                }
+                SplitMode.EXCLUDE -> {
+                    splitApps.forEach { pkg ->
+                        try {
+                            builder.addAllowedApplication(pkg)
+                        } catch (_: Exception) {}
+                    }
+                }
+            }
+        }
+
+        // اضافه کردن DNS
+        options.dnsServerAddress?.forEach { dns ->
+            builder.addDnsServer(dns)
+        }
+
+        return try {
+            val pfd = builder.establish()
+            vpnInterface = pfd
+            pfd?.fd ?: -1
+        } catch (e: Exception) {
+            Logger.e("openTun failed", e)
+            -1
+        }
+    }
+
+    override fun autoDetectInterfaceControl(fd: Int) {
+        protect(fd)
+    }
+
+    // ================== VPN Management ==================
+
     private fun startVpn(profile: Profile? = null, config: String? = null, profileId: String = "") {
         if (isRunning) {
             Logger.d("VPN already running, stopping first")
@@ -97,45 +195,7 @@ class V2RayService : VpnService() {
         }
 
         serviceScope.launch {
-            var fd: Int = -1
             try {
-                Logger.i("Building VPN interface...")
-                val builder = Builder()
-                    .setSession("V2Ray VPN")
-                    .setMtu(1500)
-                    .addAddress("10.0.0.1", 32)
-                    .addRoute("0.0.0.0", 0)
-                    .setBlocking(true)
-                    .setConfigureIntent(
-                        PendingIntent.getActivity(
-                            this@V2RayService,
-                            0,
-                            Intent(this@V2RayService, MainActivity::class.java),
-                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                        )
-                    )
-
-                if (splitTunnelingEnabled && splitApps.isNotEmpty()) {
-                    Logger.d("Split Tunneling enabled with ${splitApps.size} apps")
-                    when (splitMode) {
-                        SplitMode.INCLUDE -> {
-                            splitApps.forEach { pkg -> builder.addDisallowedApplication(pkg) }
-                        }
-                        SplitMode.EXCLUDE -> {
-                            splitApps.forEach { pkg -> builder.addAllowedApplication(pkg) }
-                        }
-                    }
-                }
-
-                vpnInterface = builder.establish()
-                fd = vpnInterface?.fd ?: -1
-                Logger.i("VPN interface established with fd: $fd")
-
-                if (fd == -1) {
-                    throw Exception("VPN interface fd is invalid")
-                }
-
-                // ساخت کانفیگ
                 val finalConfig = if (profile != null) {
                     singBoxManager.buildSingBoxConfig(profile)
                 } else if (config != null) {
@@ -145,8 +205,7 @@ class V2RayService : VpnService() {
                 }
 
                 Logger.i("Starting sing-box with config length: ${finalConfig.length}")
-                // استفاده از متد startV2Ray جدید
-                val result = singBoxManager.startV2Ray(finalConfig, fd)
+                val result = singBoxManager.startV2Ray(finalConfig, 0) // fd در PlatformInterface مدیریت می‌شود
                 if (result.isSuccess) {
                     isRunning = true
                     binder.setStatus("Connected")

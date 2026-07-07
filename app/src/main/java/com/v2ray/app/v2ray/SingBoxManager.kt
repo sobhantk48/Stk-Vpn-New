@@ -4,17 +4,21 @@ import android.content.Context
 import android.util.Log
 import com.v2ray.app.data.Profile
 import com.v2ray.app.bg.LocalResolver
+import io.nekohasekai.libbox.BoxInstance
+import io.nekohasekai.libbox.Libbox
+import io.nekohasekai.libbox.PlatformInterface
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import io.nekohasekai.libbox.BoxInstance
-import io.nekohasekai.libbox.Libbox
 import org.json.JSONArray
 import org.json.JSONObject
 
-class SingBoxManager(private val context: Context) {
+class SingBoxManager(
+    private val context: Context,
+    private val platformInterface: PlatformInterface
+) {
     companion object {
         private const val TAG = "SingBoxManager"
         enum class CoreState {
@@ -148,12 +152,13 @@ class SingBoxManager(private val context: Context) {
                     stopV2Ray().getOrThrow()
                 }
 
-                val box = Libbox.newBoxInstance(configJson, LocalResolver)
+                // ارسال PlatformInterface به Libbox
+                val box = Libbox.newBoxInstance(configJson, LocalResolver, platformInterface)
                 boxInstance = box
                 box.start()
                 isRunning = true
                 _coreState.update { CoreState.CONNECTED }
-                Log.d(TAG, "✅ Sing-box started successfully with Libbox")
+                Log.d(TAG, "✅ Sing-box started successfully with PlatformInterface")
                 Result.success(Unit)
             } catch (e: Exception) {
                 Log.e(TAG, "❌ startV2Ray failed", e)

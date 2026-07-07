@@ -5,5 +5,5 @@ public class Libbox {
         System.loadLibrary("box");
     }
 
-    public static native BoxInstance newBoxInstance(String config, LocalDNSTransport transport);
+    public static native BoxInstance newBoxInstance(String config, LocalDNSTransport transport, PlatformInterface platform);
 }

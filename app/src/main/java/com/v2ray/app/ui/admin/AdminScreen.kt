@@ -7,7 +7,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.v2ray.app.data.Profile
 import com.v2ray.app.ui.theme.*
+import com.v2ray.app.utils.SmartParser
 import com.v2ray.app.viewmodel.MainViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -103,15 +103,125 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
     }
 
     if (showAddDialog) {
-        AddConfigDialog(
+        SmartAddConfigDialog(
             onDismiss = { showAddDialog = false },
-            onAdd = {
-                vm.add(it)
+            onAdd = { profilesList ->
+                profilesList.forEach { vm.add(it) }
                 showAddDialog = false
             }
         )
     }
 }
+
+// ===== دیالوگ‌های جدید با Smart Paste =====
+
+@Composable
+fun SmartAddConfigDialog(onDismiss: () -> Unit, onAdd: (List<Profile>) -> Unit) {
+    var input by remember { mutableStateOf("") }
+    var parsedProfiles by remember { mutableStateOf<List<Profile>>(emptyList()) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Profile (Smart Paste)") },
+        text = {
+            Column {
+                Text(
+                    text = "Paste any of the following:",
+                    color = WhiteText.copy(0.7f),
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = "• vless://, vmess://, trojan://, ss://\n• Clash YAML (with proxies)\n• v2rayN JSON (with outbounds)",
+                    color = WhiteText.copy(0.5f),
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = {
+                        input = it
+                        error = null
+                        // تلاش برای پارس خودکار
+                        if (it.length > 10) {
+                            try {
+                                val result = SmartParser.detectAndParse(it)
+                                if (result.isNotEmpty()) {
+                                    parsedProfiles = result
+                                } else {
+                                    error = "No profiles found"
+                                }
+                            } catch (e: Exception) {
+                                error = e.message
+                            }
+                        } else {
+                            parsedProfiles = emptyList()
+                        }
+                    },
+                    label = { Text("Paste link or config") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = false,
+                    minLines = 3
+                )
+                if (error != null) {
+                    Text(
+                        text = "❌ $error",
+                        color = RedError,
+                        fontSize = 12.sp
+                    )
+                }
+                if (parsedProfiles.isNotEmpty()) {
+                    Text(
+                        text = "✅ Found ${parsedProfiles.size} profile(s)",
+                        color = GreenSuccess,
+                        fontSize = 12.sp
+                    )
+                    // نمایش نام اولین پروفایل
+                    parsedProfiles.take(3).forEach { profile ->
+                        Text(
+                            text = "• ${profile.name} (${profile.type})",
+                            color = WhiteText.copy(0.8f),
+                            fontSize = 11.sp
+                        )
+                    }
+                    if (parsedProfiles.size > 3) {
+                        Text(
+                            text = "... and ${parsedProfiles.size - 3} more",
+                            color = WhiteText.copy(0.5f),
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (parsedProfiles.isNotEmpty()) {
+                        onAdd(parsedProfiles)
+                    } else {
+                        // اگر چیزی یافت نشد، سعی کنید مستقیماً از لینک استفاده کنید
+                        val single = SmartParser.detectAndParse(input)
+                        if (single.isNotEmpty()) {
+                            onAdd(single)
+                        } else {
+                            error = "No valid config found"
+                        }
+                    }
+                },
+                enabled = parsedProfiles.isNotEmpty() || input.isNotBlank()
+            ) {
+                Text("Add All")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+// ===== دیالوگ‌های قدیمی (AdminPasswordDialog, AdminProfileCard, ChangePasswordDialog) =====
+// همان‌طور که بود
 
 @Composable
 fun AdminPasswordDialog(onDismiss: () -> Unit, onSuccess: () -> Unit) {
@@ -161,32 +271,4 @@ fun AdminProfileCard(profile: Profile, onEdit: () -> Unit, onDelete: () -> Unit)
             }
         }
     }
-}
-
-@Composable
-fun AddConfigDialog(onDismiss: () -> Unit, onAdd: (Profile) -> Unit) {
-    var link by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Add Profile") },
-        text = {
-            Column {
-                Text("Paste share link (vless://, vmess://, ...)")
-                OutlinedTextField(
-                    value = link,
-                    onValueChange = { link = it },
-                    label = { Text("Share Link") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                Profile.fromLink(link)?.let { onAdd(it) } ?: onDismiss()
-            }) { Text("Add") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
 }

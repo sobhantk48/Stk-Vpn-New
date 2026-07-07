@@ -224,8 +224,8 @@ class MainViewModel @Inject constructor(
 
     fun onVpnPermissionGranted() {
         val selected = selectedProfile.value ?: return
-        val config = buildConfigFromProfile(selected)
-        Log.d(TAG, "Generated config: $config")
+        val config = buildXrayConfigFromProfile(selected)
+        Log.d(TAG, "Generated Xray config: $config")
         val intent = Intent(context, V2RayService::class.java).apply {
             action = V2RayService.ACTION_CONNECT
             putExtra(V2RayService.EXTRA_CONFIG, config)
@@ -240,34 +240,46 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    private fun buildConfigFromProfile(profile: Profile): String {
-        // ===== inbound SOCKS (به جای TUN) =====
+    /**
+     * تولید کانفیگ به فرمت Xray-core (نه sing-box)
+     */
+    private fun buildXrayConfigFromProfile(profile: Profile): String {
+        // ---------- inbound SOCKS (با port در سطح اصلی) ----------
         val inbound = buildJsonObject {
-            put("type", "socks")
-            put("tag", "socks-in")
-            put("listen", "127.0.0.1")
-            put("listen_port", 1080)
+            put("port", 1080)
+            put("protocol", "socks")
+            put("settings", buildJsonObject {
+                put("auth", "noauth")
+                put("udp", true)
+            })
         }
 
-        // ===== outbound از پروفایل =====
-        val outbound = buildJsonObject {
-            put("type", profile.type.lowercase())
-            put("server", profile.address)
-            put("server_port", profile.port)
-            put("uuid", profile.uuid)
-            if (profile.flow.isNotBlank()) put("flow", profile.flow)
-            val sni = profile.getEffectiveSni()
-            if (sni.isNotBlank()) {
-                put("tls", buildJsonObject {
-                    put("enabled", true)
-                    put("server_name", sni)
-                    put("insecure", profile.allowInsecure)
+        // ---------- outbound vless ----------
+        val vnext = buildJsonObject {
+            put("address", profile.address)
+            put("port", profile.port)
+            put("users", JsonArray(listOf(
+                buildJsonObject {
+                    put("id", profile.uuid)
+                    put("flow", profile.flow.ifEmpty { "" })
+                    put("encryption", "none")
+                }
+            )))
+        }
+
+        // streamSettings
+        val streamSettings = buildJsonObject {
+            put("network", profile.network.ifEmpty { "tcp" })
+            if (profile.sni.isNotBlank() || profile.customSni.isNotBlank()) {
+                put("security", "tls")
+                put("tlsSettings", buildJsonObject {
+                    put("serverName", profile.getEffectiveSni())
                     put("fingerprint", profile.fingerprint)
+                    if (profile.allowInsecure) put("allowInsecure", true)
                 })
             }
             if (profile.network == "ws") {
-                put("transport", buildJsonObject {
-                    put("type", "ws")
+                put("wsSettings", buildJsonObject {
                     put("path", profile.path.ifEmpty { "/" })
                     if (profile.host.isNotBlank()) {
                         put("headers", buildJsonObject {
@@ -278,20 +290,38 @@ class MainViewModel @Inject constructor(
             }
         }
 
+        val outbound = buildJsonObject {
+            put("protocol", profile.type.lowercase())
+            put("settings", buildJsonObject {
+                put("vnext", JsonArray(listOf(vnext)))
+            })
+            put("streamSettings", streamSettings)
+            put("tag", "proxy")
+        }
+
         val direct = buildJsonObject {
-            put("type", "direct")
+            put("protocol", "freedom")
             put("tag", "direct")
         }
 
+        // ---------- کل کانفیگ Xray ----------
         val config = buildJsonObject {
-            put("log", buildJsonObject { put("level", "warn") })
+            put("log", buildJsonObject {
+                put("loglevel", "warning")
+            })
             put("inbounds", JsonArray(listOf(inbound)))
             put("outbounds", JsonArray(listOf(outbound, direct)))
-            put("route", buildJsonObject {
-                put("auto_detect_interface", true)
-                put("final", "direct")
+            put("routing", buildJsonObject {
+                put("rules", JsonArray(listOf(
+                    buildJsonObject {
+                        put("type", "field")
+                        put("inboundTag", JsonArray(listOf("socks-in")))
+                        put("outboundTag", "proxy")
+                    }
+                )))
             })
         }
+
         return config.toString()
     }
 

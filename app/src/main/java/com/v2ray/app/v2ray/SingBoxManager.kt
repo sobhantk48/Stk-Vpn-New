@@ -1,18 +1,18 @@
 package com.v2ray.app.v2ray
 
 import android.content.Context
-import android.content.Intent
-import android.os.ParcelFileDescriptor
 import android.util.Log
-import io.nekohasekai.libbox.BoxService
+import com.v2ray.app.data.Profile
+import com.v2ray.app.net.LocalResolverImpl
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import libcore.BoxInstance
+import libcore.Libcore
 import org.json.JSONArray
 import org.json.JSONObject
-import com.v2ray.app.data.Profile
 
 class SingBoxManager(private val context: Context) {
     companion object {
@@ -26,6 +26,7 @@ class SingBoxManager(private val context: Context) {
     }
 
     private var isRunning = false
+    private var boxInstance: BoxInstance? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     fun buildSingBoxConfig(profile: Profile): String {
@@ -148,17 +149,12 @@ class SingBoxManager(private val context: Context) {
                     stopV2Ray().getOrThrow()
                 }
 
-                val intent = Intent(context, BoxService::class.java).apply {
-                    putExtra("config", configJson)
-                    // ارسال fd به BoxService
-                    putExtra("tun_fd", vpnFd)
-                }
-                context.startService(intent)
-                Log.d(TAG, "BoxService started with config and tun_fd: $vpnFd")
-
+                val box = Libcore.newSingBoxInstance(configJson, LocalResolverImpl)
+                boxInstance = box
+                box.start()
                 isRunning = true
                 _coreState.update { CoreState.CONNECTED }
-                Log.d(TAG, "V2Ray started successfully")
+                Log.d(TAG, "Sing-box started successfully")
                 Result.success(Unit)
             } catch (e: Exception) {
                 Log.e(TAG, "startV2Ray failed", e)
@@ -173,10 +169,11 @@ class SingBoxManager(private val context: Context) {
     suspend fun stopV2Ray(): Result<Unit> =
         withContext(Dispatchers.IO) {
             try {
-                context.stopService(Intent(context, BoxService::class.java))
+                boxInstance?.close()
+                boxInstance = null
                 isRunning = false
                 _coreState.update { CoreState.DISCONNECTED }
-                Log.d(TAG, "V2Ray stopped")
+                Log.d(TAG, "Sing-box stopped")
                 Result.success(Unit)
             } catch (e: Exception) {
                 Log.e(TAG, "stopV2Ray failed", e)
@@ -189,8 +186,9 @@ class SingBoxManager(private val context: Context) {
     fun cleanup() {
         scope.launch {
             try {
-                context.stopService(Intent(context, BoxService::class.java))
+                boxInstance?.close()
             } catch (_: Exception) {}
+            boxInstance = null
             isRunning = false
             _coreState.update { CoreState.IDLE }
             Log.d(TAG, "Cleanup done")

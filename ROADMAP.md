@@ -1,11 +1,11 @@
-# 📌 نقشه راه پروژه Stkvpn (ادغام با EasySNI)
+# 📌 نقشه راه پروژه Stkvpn (ادغام با sing-box و بهینه‌سازی بر اساس SFA, NekoBox, LxBox)
 
 ## 🎯 هدف نهایی
-تبدیل Stkvpn به یک اپلیکیشن کامل VPN با قابلیت‌های پیشرفته‌ی دور زدن فیلترینگ (SNI Tunnel، Domain Fronting، Desync) و همچنین بهبود تجربه کاربری با اضافه کردن Kill Switch، Split Tunneling، Recent Activity و پشتیبان‌گیری.
+تبدیل Stkvpn به یک اپلیکیشن VPN حرفه‌ای با معماری پایدار، پشتیبانی از پروتکل‌های جدید، مدیریت اشتراک پیشرفته و تجربه کاربری روان، با الهام از بهترین‌های سه پروژه‌ی SFA، NekoBox و LxBox.
 
 ---
 
-## 📋 قوانین پروژه (قوانین طلایی، نقره‌ای، برنزی و جدید)
+## 📋 قوانین پروژه
 
 | ردیف | عنوان قانون | توضیح |
 |------|-------------|--------|
@@ -24,121 +24,118 @@
 
 ---
 
+## 🔍 فاز ۰: تحلیل و انتخاب بهترین‌ها (✅ انجام شد)
+
+| ردیف | بخش | بهترین از کدام پروژه | دلیل انتخاب |
+|------|-----|----------------------|-------------|
+| **۰-۱** | معماری دوفرایندی | **SFA** | جدا کردن سرویس‌های سنگین از UI برای جلوگیری از کرش و ری‌استارت |
+| **۰-۲** | ساخت کانفیگ | **NekoBox** | استفاده از `Configuration Builder` مجزا و پشتیبانی از پروتکل‌های متنوع |
+| **۰-۳** | مدیریت اشتراک | **NekoBox** (RawUpdater) + **LxBox** (Gate‌های ضد اسپم) | سیستم کامل و بهینه برای دریافت، پارس و همگام‌سازی |
+| **۰-۴** | ورودی هوشمند کانفیگ | **LxBox** (Smart Paste) | تشخیص خودکار فرمت (vless://, vmess://, trojan://, ss://, Clash YAML, ...) |
+| **۰-۵** | پروتکل‌های جدید | **LxBox** (AWG 2.0, XHTTP) + **NekoBox** (Hysteria, TUIC, WireGuard) | پشتیبانی از جدیدترین پروتکل‌ها |
+| **۰-۶** | تست سرعت داخلی | **LxBox** | mass-ping و نمایش پینگ لحظه‌ای |
+| **۰-۷** | مسیریابی هوشمند | **SFA** + **LxBox** | route based on rules with fallback |
+| **۰-۸** | مدیریت وضعیت | **SFA** (CommandClient/CommandServer) | ارتباط پایدار بین فرایندها |
+
+---
+
 ## 📅 فازبندی کلی
 
 | فاز | عنوان | تعداد وظایف | وضعیت |
 |-----|-------|-------------|--------|
-| **فاز ۰** | آماده‌سازی و برنامه‌ریزی | ۲ | ✅ انجام شد |
-| **فاز ۱** | اضافه کردن پارسر لینک‌ها و تست سرعت | ۴ | ✅ انجام شد |
-| **فاز ۲** | پیاده‌سازی SNI Tunnel | ۳ | ✅ انجام شد |
-| **فاز ۳** | پیاده‌سازی Domain Fronting | ۳ | ✅ انجام شد |
-| **فاز ۴** | اضافه کردن Desync و Fragment | ۲ | ✅ انجام شد |
-| **فاز ۵** | Kill Switch و Split Tunneling | ۳ | ✅ انجام شد |
-| **فاز ۶** | Recent Activity و پشتیبان‌گیری | ۳ | ✅ انجام شد |
-| **فاز ۷** | بهبود UI/UX و انتشار | ۴ | ✅ انجام شد |
-| **🛠️ دیباگ** | رفع خطاهای کامپایل و اجرا | ۲۵+ | ✅ انجام شد |
-| **⚡ بهینه‌سازی** | کاهش حجم و مصرف حافظه | ۸ | ✅ انجام شد |
+| **فاز ۰** | تحلیل و انتخاب بهترین‌ها | ۴ | ✅ انجام شد |
+| **فاز ۱** | ارتقاء معماری (دوفرایندی) | ۳ | ❌ انجام نشده |
+| **فاز ۲** | مدیریت پیشرفته کانفیگ | ۴ | ❌ انجام نشده |
+| **فاز ۳** | مدیریت اشتراک و پروفایل | ۴ | ❌ انجام نشده |
+| **فاز ۴** | اضافه کردن پروتکل‌های جدید | ۵ | ❌ انجام نشده |
+| **فاز ۵** | بهبود UI/UX و قابلیت‌های کاربردی | ۴ | ❌ انجام نشده |
+| **فاز ۶** | بهینه‌سازی و انتشار | ۳ | ❌ انجام نشده |
 
 ---
 
-## 🛠️ بخش دیباگ کامل (خطاها، راه‌حل‌ها و ایرادات)
+## 🚀 فاز ۱: ارتقاء معماری (دوفرایندی) – الگو از SFA
 
-### 📌 خطاهای کامپایل (Compilation Errors)
-
-| ردیف | خطا | توضیح | راه‌حل | وضعیت |
-|------|-----|-------|--------|--------|
-| **D-01** | `Unresolved reference: V2rayAppTheme` | فایل Theme وجود نداشت | ایجاد `Theme.kt` با تابع `V2rayAppTheme` | ✅ |
-| **D-02** | `Unresolved reference: rememberSaveable` | عدم import در `LogViewerScreen` | اضافه کردن import `rememberSaveable` | ✅ |
-| **D-03** | `Unresolved reference: SplitMode` | Enum در جای اشتباه تعریف شده بود | انتقال به `model/SplitMode.kt` | ✅ |
-| **D-04** | `Unresolved reference: GreenSuccess` | رنگ در `Color.kt` نبود | اضافه کردن `GreenSuccess` | ✅ |
-| **D-05** | `Unresolved reference: login` در `AdminLoginScreen` | تابع `login` تعریف نشده بود | بازنویسی کامل `AdminLoginScreen` | ✅ |
-| **D-06** | `Unresolved reference: writeLog/writeError` | توابع لاگ وجود نداشتند | جایگزینی با `Logger` مستقیم | ✅ |
-| **D-07** | `Conflicting import: Logger` | import تکراری و مبهم | استفاده از مسیر کامل `com.v2ray.app.utils.Logger` | ✅ |
-| **D-08** | `@Composable invocations` در `MainActivity` | استفاده از `try-catch` دور کامپوزیبل | حذف `try-catch` و استفاده از `remember` | ✅ |
-| **D-09** | `OutlinedTextField colors` | پارامترهای رنگی منسوخ شده بودند | اضافه کردن پارامترهای جدید (`focusedTextColor`, `cursorColor`) | ✅ |
+| ردیف | وظیفه | توضیح | فایل‌های جدید | وضعیت |
+|------|-------|-------|---------------|--------|
+| **۱-۱** | ایجاد فرایند پس‌زمینه (`:bg`) | ساخت ماژول جداگانه برای سرویس‌های سنگین | `app/src/bg/AndroidManifest.xml`, `app/src/bg/java/.../BoxService.kt` | ❌ |
+| **۱-۲** | ایجاد `CommandServer` و `CommandClient` | ارتباط بین فرایندها | `app/src/bg/java/.../CommandServer.kt`, `app/src/main/java/.../CommandClient.kt` | ❌ |
+| **۱-۳** | اصلاح `AndroidManifest.xml` | ثبت سرویس با `android:process=":bg"` | `app/src/main/AndroidManifest.xml` | ❌ |
 
 ---
 
-### 📌 خطاهای Runtime و کانفیگ (Configuration & Runtime Errors)
+## ⚙️ فاز ۲: مدیریت پیشرفته کانفیگ – الگو از NekoBox
 
-| ردیف | خطا | توضیح | راه‌حل | وضعیت |
-|------|-----|-------|--------|--------|
-| **D-10** | `config error: Listen on AnyIP but no Port(s) set` | JSON کانفیگ ساختار آرایه نداشت و `port` مشخص نشده بود | تبدیل `inbounds` و `outbounds` به آرایه، اضافه کردن `port: 0` | ✅ |
-| **D-11** | `config error: failed to build inbound config` | `inbounds` و `outbounds` با هم تداخل داشتند | جدا کردن `inbounds` از `outbounds` در کانفیگ | ✅ |
-| **D-12** | کرش برنامه هنگام اتصال VPN | خطاهای مدیریت نشده در `V2RayService` | افزودن `try-catch` و لاگ‌گیری کامل | ✅ |
-| **D-13** | صفحه‌ی سفید در اولین اجرا | خطا در `setContent` دیده نمی‌شد | اضافه کردن `errorMessage` state در `MainActivity` | ✅ |
-| **D-14** | لاگ‌ها خالی بودند | `Logger` پیاده‌سازی نشده بود | ایجاد `Logger.kt` با ذخیره‌سازی در فایل | ✅ |
-| **D-15** | پنل ادمین فقط صفحه‌ی رمز داشت | `AdminScreen` کامل نبود | تکمیل `AdminScreen` با لیست پروفایل‌ها و دکمه‌ی Add | ✅ |
-| **D-16** | رمز ادمین ۱۳۱۱ جواب نمی‌داد | رمز پیش‌فرض اشتباه بود | رمز پیش‌فرض `admin` است (نه `1311`) | ✅ |
-| **D-17** | `config error: unknown config id` | کاما اضافی در JSON کانفیگ | حذف کاماهای اضافی و اعتبارسنجی JSON | ✅ |
-| **D-18** | `config error: Listen on specific ip without port` | کتابخانه `libbox` از فرمت `sing-box` پشتیبانی نمی‌کرد | تشخیص اینکه `libbox.aar` برای Xray-core است و تغییر فرمت کانفیگ به Xray | ✅ |
-| **D-19** | پینگ، دانلود و آپلود نمایشی بودند | داده‌های ساختگی در UI | پینگ با کانفیگ واقعی محاسبه می‌شود؛ دانلود/آپلود نیاز به توسعه‌ی جداگانه دارد | 🔄 |
-| **D-20** | ویرایش کانفیگ در پنل ادمین کار نمی‌کرد | دیالوگ ویرایش کامل نبود | فیلدهای جدید (network, path, host) به دیالوگ ویرایش اضافه شدند | ✅ |
-| **D-21** | کرش بعد از `V2Ray started successfully` | `port` و `server_port` به‌صورت رشته ارسال شده بودند | اصلاح نوع `port` به عدد در `buildXrayConfigFromProfile` | ✅ |
-| **D-22** | کرش به دلیل `routing` با `geoip:private` | فایل `geoip.dat` وجود نداشت | حذف `routing` از کانفیگ | ✅ |
-| **D-23** | `ViewModel` ناهماهنگ در `MainActivity` و `AppNavigation` | استفاده از دو نمونه‌ی متفاوت `MainViewModel` | ارسال `viewModel` به‌عنوان پارامتر به `AppNavigation` | ✅ |
-| **D-24** | خطا در `CoreCallbackHandler` بدون `try-catch` | متدهای native خطا پرتاب می‌کردند | افزودن `try-catch` به تمام متدهای `CoreCallbackHandler` | ✅ |
-| **D-25** | `fingerprint` و `flow` باعث خطای parsing می‌شدند | برخی نسخه‌های Xray-core از این پارامترها پشتیبانی نمی‌کنند | حذف `fingerprint` و `flow` از کانفیگ | ✅ |
+| ردیف | وظیفه | توضیح | فایل‌های جدید | وضعیت |
+|------|-------|-------|---------------|--------|
+| **۲-۱** | ایجاد `ConfigurationBuilder` | ساخت کانفیگ sing-box به‌صورت ماژولار | `app/src/main/java/.../config/ConfigurationBuilder.kt` | ❌ |
+| **۲-۲** | پشتیبانی از پروتکل‌های جدید (VLESS, VMess, Trojan, Shadowsocks, Hysteria, WireGuard) | افزودن builderهای جداگانه برای هر پروتکل | در `ConfigurationBuilder.kt` | ❌ |
+| **۲-۳** | اضافه کردن `Smart Paste` (تشخیص خودکار فرمت) | از LxBox | `app/src/main/java/.../utils/SmartParser.kt` | ❌ |
+| **۲-۴** | مدیریت کانفیگ‌های سفارشی (Clash YAML, v2rayN JSON) | پشتیبانی از فرمت‌های مختلف | در `SmartParser.kt` | ❌ |
 
 ---
 
-## 📊 بخش بهینه‌سازی و کاهش حجم (وظایف انجام‌شده)
+## 📦 فاز ۳: مدیریت اشتراک و پروفایل – الگو از NekoBox + LxBox
 
-| ردیف | عنوان | توضیح | وضعیت |
+| ردیف | وظیفه | توضیح | فایل‌های جدید | وضعیت |
+|------|-------|-------|---------------|--------|
+| **۳-۱** | ایجاد `ProfileDatabase` (Room) | ذخیره‌سازی پروفایل‌ها در دیتابیس | `app/src/main/java/.../database/ProfileDatabase.kt` | ❌ |
+| **۳-۲** | پیاده‌سازی `RawUpdater` | دریافت، پارس و همگام‌سازی اشتراک‌ها | `app/src/main/java/.../subscription/RawUpdater.kt` | ❌ |
+| **۳-۳** | Gate‌های ضد اسپم برای آپدیت اشتراک | جلوگیری از آپدیت‌های مکرر | در `RawUpdater.kt` | ❌ |
+| **۳-۴** | اضافه کردن قابلیت import از فایل محلی | (.txt, .json, .yaml) | در `SmartParser.kt` | ❌ |
+
+---
+
+## 🔌 فاز ۴: اضافه کردن پروتکل‌های جدید
+
+| ردیف | وظیفه | توضیح | منبع |
+|------|-------|-------|------|
+| **۴-۱** | Hysteria2 | افزودن پارسر و builder | NekoBox |
+| **۴-۲** | WireGuard | افزودن پارامترهای کلید خصوصی/عمومی | NekoBox |
+| **۴-۳** | TUIC | افزودن `token`, `congestion_control` | NekoBox |
+| **۴-۴** | AmneziaWG 2.0 | نیاز به فورک `sing-box-lx` یا استفاده از `libbox` استاندارد | LxBox |
+| **۴-۵** | XHTTP | پروتکل جدید از LxBox | LxBox |
+
+---
+
+## 🎨 فاز ۵: بهبود UI/UX
+
+| ردیف | وظیفه | توضیح | وضعیت |
 |------|-------|-------|--------|
-| **O-01** | حذف وابستگی‌های بلااستفاده | CameraX, ML Kit, OkHttp, BouncyCastle | ✅ |
-| **O-02** | فعال‌سازی `shrinkResources` و `minifyEnabled` | کاهش حجم منابع و کدهای اضافی | ✅ |
-| **O-03** | فیلتر ABI (فقط `arm64-v8a` و `armeabi-v7a`) | کاهش حجم کتابخانه‌های Native | ✅ |
-| **O-04** | حذف کدهای مرده | `QrScanner.kt`, `SniTunnelManager.kt`, `ProxyServer.kt`, `CertificateManager.kt`, `DohResolver.kt`, `DesyncManager.kt`, `FragmentManager.kt` | ✅ |
-| **O-05** | یکپارچه‌سازی `ProfileParser` و `Profile` | حذف `ProfileParser.kt` | ✅ |
-| **O-06** | به‌روزرسانی `proguard-rules.pro` | بهبود حذف کدهای استفاده‌نشده | ✅ |
-| **O-07** | اصلاح `build.gradle` برای کاهش وابستگی‌های توسعه | جدا کردن `debugImplementation` و `releaseImplementation` | ✅ |
-| **O-08** | پاکسازی فایل‌های اضافی از ریشه‌ی پروژه | حذف `EasySNI/`, `keystore_base64.txt`, `errors.txt`, `stkvpn.zip`, `*.lock` | ✅ |
+| **۵-۱** | نمایش پینگ لحظه‌ای | به‌روزرسانی هر ۵ ثانیه | ❌ |
+| **۵-۲** | تست سرعت (mass-ping) | نمایش پینگ در لیست سرورها | ❌ |
+| **۵-۳** | ویجت Quick Connect/Disconnect | FAB در صفحه اصلی | ❌ |
+| **۵-۴** | نمایش ترافیک لحظه‌ای | دانلود/آپلود لحظه‌ای | ❌ |
 
 ---
 
-## 📂 فایل‌های کلیدی اصلاح‌شده در طول دیباگ
+## 🚀 فاز ۶: بهینه‌سازی و انتشار
 
-| فایل | تغییرات |
-|------|----------|
-| `MainViewModel.kt` | اصلاح ساختار کانفیگ، اضافه کردن `buildXrayConfigFromProfile`، حذف `routing`، تغییر `loglevel: debug` |
-| `V2RayService.kt` | افزودن لاگ‌گیری، مدیریت خطا، اصلاح `startVpn`، اصلاح `protect()` در Debug |
-| `SingBoxManager.kt` | افزودن `try-catch` به `CoreCallbackHandler` و `startLoop` |
-| `AdminScreen.kt` | تکمیل پنل ادمین با لیست پروفایل‌ها و دیالوگ Add |
-| `AdminLoginScreen.kt` | اصلاح کامپایل و رفع خطای `login` |
-| `SettingsScreen.kt` | اضافه کردن تنظیمات Kill Switch و Split Tunneling |
-| `LogViewerScreen.kt` | اتصال به `Logger` و نمایش لاگ‌ها |
-| `Logger.kt` | فایل جدید برای ذخیره‌سازی لاگ‌ها |
-| `SplitMode.kt` | فایل جدید برای Enum |
-| `Color.kt` | اضافه کردن `GreenSuccess` |
-| `Profile.kt` | اضافه کردن فیلدهای جدید (network, path, host, allowInsecure) و تکمیل توابع |
-| `MainActivity.kt` | ارسال `viewModel` به `AppNavigation`، اصلاح `by viewModels()` به `by hiltViewModel()` |
-| `AppNavigation.kt` | دریافت `viewModel` از پارامتر به‌جای `hiltViewModel()` |
-| `AndroidManifest.xml` | اضافه کردن `android:name=".V2RayApplication"` و مجوزهای لازم |
+| ردیف | وظیفه | توضیح | وضعیت |
+|------|-------|-------|--------|
+| **۶-۱** | به‌روزرسانی ProGuard | قوانین حفظ `libbox` و کلاس‌های اصلی | ❌ |
+| **۶-۲** | کاهش حجم APK | `shrinkResources`, `abiFilters` | ❌ |
+| **۶-۳** | انتشار در GitHub Releases | workflow خودکار برای آپلود APK | ❌ |
 
 ---
 
-## 🟢 وضعیت فعلی
+## 📊 وضعیت فعلی (پس از فاز ۰)
 
-- **تاریخ شروع:** ۱۴۰۵-۰۴-۱۵  
-- **تاریخ به‌روزرسانی:** ۱۴۰۵-۰۴-۱۶  
-- **بیلد:** ✅ موفق (سبز)  
-- **اجرای اپ:** ✅ بدون کرش  
-- **VPN:** ✅ وصل می‌شود و علامت VPN بالا می‌آید  
-- **پنل ادمین:** ✅ کار می‌کند (رمز: `admin`)  
-- **مدیریت کانفیگ:** ✅ افزودن، ویرایش و حذف  
-- **لاگ‌گیری:** ✅ فعال و قابل مشاهده در Log Viewer  
-- **پینگ:** 🔄 با کانفیگ واقعی کار می‌کند  
-- **دانلود/آپلود:** ❌ نیاز به توسعه‌ی جداگانه (TrafficStats)  
+- **تاریخ شروع:** ۱۴۰۵-۰۴-۱۷
+- **بیلد:** ✅ موفق (سبز)
+- **اجرای اپ:** ⚠️ با کرش‌های نادر
+- **VPN:** ⚠️ گاهی وصل می‌شود و گاهی کرش می‌کند
+- **پنل ادمین:** ✅ کار می‌کند (رمز: `admin`)
+- **مدیریت کانفیگ:** ✅ افزودن، ویرایش و حذف
+- **لاگ‌گیری:** ✅ فعال
 
 ---
 
-## 📌 گام‌های بعدی
+## 📌 گام‌های بعدی (اولویت‌بندی شده)
 
-1. **توسعه‌ی نمایش ترافیک واقعی** (دانلود/آپلود) با استفاده از `TrafficStats` یا API Xray-core.
-2. **تکمیل دیالوگ ویرایش** در پنل ادمین برای فیلدهای جدید.
-3. **تست با کانفیگ‌های واقعی** در شرایط مختلف شبکه.
-4. **انتشار نسخه‌ی اولیه** در GitHub Releases.
+1. **🔴 فاز ۱ (معماری دوفرایندی)** – فوری: برای رفع کرش‌های ناگهانی و افزایش پایداری
+2. **🟡 فاز ۲ و ۳ (کانفیگ و اشتراک)** – مهم: برای رقابت با پروژه‌های مطرح
+3. **🟢 فاز ۴ و ۵ (پروتکل‌ها و UI)** – تکمیلی: برای جذابیت و کاربردی‌تر شدن
+4. **🔵 فاز ۶ (بهینه‌سازی)** – نهایی: برای انتشار
 
 ---
 

@@ -5,8 +5,8 @@ import android.content.Intent
 import android.util.Log
 import io.nekohasekai.libbox.BoxService
 import io.nekohasekai.libbox.CommandClient
-import io.nekohasekai.libbox.CommandClientOptions
 import io.nekohasekai.libbox.CommandClientHandler
+import io.nekohasekai.libbox.CommandClientOptions
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +28,26 @@ class SingBoxManager(private val context: Context) {
     private var isRunning = false
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    // پیاده‌سازی کامل CommandClientHandler
+    private val handler = object : CommandClientHandler {
+        override fun onConnected() {
+            Log.d(TAG, "CommandClient connected")
+            _coreState.update { CoreState.CONNECTED }
+        }
+
+        override fun onDisconnected() {
+            Log.d(TAG, "CommandClient disconnected")
+        }
+
+        override fun onMessage(message: String?) {
+            Log.d(TAG, "CommandClient message: $message")
+        }
+
+        override fun clearLogs() {
+            Log.d(TAG, "CommandClient clearLogs called")
+        }
+    }
+
     suspend fun startV2Ray(configJson: String, vpnFd: Int): Result<Unit> =
         withContext(Dispatchers.IO) {
             try {
@@ -42,22 +62,10 @@ class SingBoxManager(private val context: Context) {
                 context.startService(intent)
                 Log.d(TAG, "BoxService started with config")
 
-                // ۲. ایجاد CommandClient و اتصال
-                val handler = object : CommandClientHandler {
-                    override fun onConnected() {
-                        Log.d(TAG, "CommandClient connected")
-                        _coreState.update { CoreState.CONNECTED }
-                    }
-                    override fun onDisconnected() {
-                        Log.d(TAG, "CommandClient disconnected")
-                    }
-                    override fun onMessage(message: String?) {
-                        Log.d(TAG, "CommandClient message: $message")
-                    }
-                }
-                val options = CommandClientOptions()
+                // ۲. ایجاد CommandClientOptions با handler
+                val options = CommandClientOptions(handler)
                 client = CommandClient(options, handler)
-                client?.connect() // اتصال به سرویس
+                client?.connect()
 
                 isRunning = true
                 _coreState.update { CoreState.CONNECTING }

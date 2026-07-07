@@ -15,6 +15,9 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0"
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a'
+        }
     }
 
     signingConfigs {
@@ -63,6 +66,8 @@ dependencies {
     implementation "androidx.compose.material3:material3"
     implementation "androidx.compose.ui:ui-tooling-preview"
     debugImplementation "androidx.compose.ui:ui-tooling"
+    debugImplementation "androidx.compose.ui:ui-test-manifest"
+    releaseImplementation "androidx.compose.ui:ui-tooling-preview"
 
     implementation "androidx.compose.material:material-icons-extended:1.6.8"
 
@@ -91,18 +96,3 @@ dependencies {
 
     implementation "androidx.datastore:datastore-preferences:1.1.0"
 }
-
-android {
-    defaultConfig {
-        ndk {
-            abiFilters 'arm64-v8a', 'armeabi-v7a'
-        }
-    }
-}
-
-// کاهش وابستگی‌های توسعه
-debugImplementation "androidx.compose.ui:ui-tooling"
-debugImplementation "androidx.compose.ui:ui-test-manifest"
-
-// فقط برای debug (برای کاهش حجم release)
-releaseImplementation "androidx.compose.ui:ui-tooling-preview"

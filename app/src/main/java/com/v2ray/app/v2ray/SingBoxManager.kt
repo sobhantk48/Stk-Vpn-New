@@ -2,6 +2,7 @@ package com.v2ray.app.v2ray
 
 import android.content.Context
 import android.content.Intent
+import android.os.ParcelFileDescriptor
 import android.util.Log
 import io.nekohasekai.libbox.BoxService
 import kotlinx.coroutines.*
@@ -38,9 +39,8 @@ class SingBoxManager(private val context: Context) {
                 outboundJson.put("tag", "proxy")
             }
 
-            // اگر Domain Fronting فعال باشد، Host Header را در outbound تنظیم می‌کنیم
+            // Domain Fronting
             if (profile.frontingDomain.isNotBlank()) {
-                // برای پروتکل‌های مبتنی بر TLS، SNI را تغییر می‌دهیم
                 val streamSettings = outboundJson.optJSONObject("streamSettings")
                 if (streamSettings != null) {
                     if (streamSettings.has("tlsSettings")) {
@@ -58,7 +58,6 @@ class SingBoxManager(private val context: Context) {
                             })
                         }
                     }
-                    // برای پروتکل‌های مبتنی بر HTTP/2 و gRPC
                     if (streamSettings.has("httpSettings")) {
                         val httpSettings = streamSettings.getJSONObject("httpSettings")
                         if (httpSettings.has("host")) {
@@ -151,9 +150,11 @@ class SingBoxManager(private val context: Context) {
 
                 val intent = Intent(context, BoxService::class.java).apply {
                     putExtra("config", configJson)
+                    // ارسال fd به BoxService
+                    putExtra("tun_fd", vpnFd)
                 }
                 context.startService(intent)
-                Log.d(TAG, "BoxService started with config")
+                Log.d(TAG, "BoxService started with config and tun_fd: $vpnFd")
 
                 isRunning = true
                 _coreState.update { CoreState.CONNECTED }

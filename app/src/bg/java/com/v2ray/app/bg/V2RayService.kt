@@ -115,6 +115,7 @@ class V2RayService : VpnService() {
                         )
                     )
 
+                // Split Tunneling
                 if (splitTunnelingEnabled && splitApps.isNotEmpty()) {
                     Logger.d("Split Tunneling enabled with ${splitApps.size} apps")
                     when (splitMode) {
@@ -135,7 +136,7 @@ class V2RayService : VpnService() {
                     throw Exception("VPN interface fd is invalid")
                 }
 
-                // Build config
+                // ساخت کانفیگ
                 val finalConfig = if (profile != null) {
                     singBoxManager.buildSingBoxConfig(profile)
                 } else if (config != null) {
@@ -199,6 +200,7 @@ class V2RayService : VpnService() {
         }
     }
 
+    // محافظت از سوکت‌ها (Kill Switch)
     override fun protect(socket: Int): Boolean {
         if (killSwitchEnabled && !isRunning) {
             return false

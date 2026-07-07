@@ -10,6 +10,7 @@ import com.v2ray.app.bg.V2RayService
 import com.v2ray.app.data.AppDatabase
 import com.v2ray.app.data.ConnectionHistory
 import com.v2ray.app.data.Profile
+import com.v2ray.app.fmt.ConfigBuilder
 import com.v2ray.app.utils.BackupManager
 import com.v2ray.app.utils.SpeedTester
 import com.v2ray.app.utils.SniResult
@@ -20,7 +21,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.*
 import java.io.File
 import javax.inject.Inject
 
@@ -224,7 +224,8 @@ class MainViewModel @Inject constructor(
 
     fun onVpnPermissionGranted() {
         val selected = selectedProfile.value ?: return
-        val config = buildSingBoxConfig(selected)
+        // استفاده از ConfigBuilder جدید
+        val config = ConfigBuilder(selected).build()
         Log.d(TAG, "Config: $config")
         activityRef?.startVpnService(config, selected.id)
         _isConnected.value = true
@@ -233,61 +234,6 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             addHistory(selected, "CONNECT")
         }
-    }
-
-    private fun buildSingBoxConfig(profile: Profile): String {
-        val inbound = buildJsonObject {
-            put("type", "tun")
-            put("tag", "tun-in")
-            put("interface_name", "v2ray-tun")
-            put("address", JsonArray(listOf(JsonPrimitive("172.19.0.1/30"))))
-            put("auto_route", true)
-            put("strict_route", true)
-            put("stack", "system")
-            put("sniff", true)
-        }
-
-        val outbound = buildJsonObject {
-            put("type", profile.type.lowercase())
-            put("server", profile.address)
-            put("server_port", profile.port)
-            put("uuid", profile.uuid)
-            val sni = profile.getEffectiveSni()
-            if (sni.isNotBlank()) {
-                put("tls", buildJsonObject {
-                    put("enabled", true)
-                    put("server_name", sni)
-                    put("insecure", true)
-                    put("fingerprint", profile.fingerprint)
-                })
-            }
-            if (profile.network == "ws") {
-                put("transport", buildJsonObject {
-                    put("type", "ws")
-                    put("path", profile.path.ifEmpty { "/" })
-                    if (profile.host.isNotBlank()) {
-                        put("headers", buildJsonObject {
-                            put("Host", profile.host)
-                        })
-                    }
-                })
-            }
-        }
-
-        val direct = buildJsonObject {
-            put("type", "direct")
-            put("tag", "direct")
-        }
-
-        return buildJsonObject {
-            put("log", buildJsonObject { put("level", "debug") })
-            put("inbounds", JsonArray(listOf(inbound)))
-            put("outbounds", JsonArray(listOf(outbound, direct)))
-            put("route", buildJsonObject {
-                put("auto_detect_interface", true)
-                put("final", "direct")
-            })
-        }.toString()
     }
 
     fun startFronting() { /* TODO */ }

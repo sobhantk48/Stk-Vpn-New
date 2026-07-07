@@ -40,7 +40,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             V2rayAppTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    AppNavigation(viewModel = viewModel)
+                    AppNavigation()
                 }
             }
         }

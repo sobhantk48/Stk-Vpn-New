@@ -148,6 +148,7 @@ class SingBoxManager(private val context: Context) {
                     stopV2Ray().getOrThrow()
                 }
 
+                // استفاده از Libbox.newBoxInstance با LocalResolver
                 val box = Libbox.newBoxInstance(configJson, LocalResolver)
                 boxInstance = box
                 box.start()

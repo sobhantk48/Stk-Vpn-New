@@ -82,7 +82,7 @@ dependencies {
     // SnakeYAML for Clash parser
     implementation("org.yaml:snakeyaml:2.2")
 
-    // LibBox (Sing-box core) - from Maven Central
+    // LibBox (Sing-box core) - from Maven Central (use same version as sfa)
     implementation("io.nekohasekai:libbox:1.10.0-alpha.10")
 
     // Coroutines

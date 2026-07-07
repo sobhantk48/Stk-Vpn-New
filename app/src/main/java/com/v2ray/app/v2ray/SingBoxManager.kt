@@ -3,14 +3,14 @@ package com.v2ray.app.v2ray
 import android.content.Context
 import android.util.Log
 import com.v2ray.app.data.Profile
-import com.v2ray.app.net.LocalResolverImpl
+import com.v2ray.app.bg.LocalResolver
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import libcore.BoxInstance
-import libcore.Libcore
+import io.nekohasekai.libbox.BoxInstance
+import io.nekohasekai.libbox.Libbox
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -149,7 +149,7 @@ class SingBoxManager(private val context: Context) {
                     stopV2Ray().getOrThrow()
                 }
 
-                val box = Libcore.newSingBoxInstance(configJson, LocalResolverImpl)
+                val box = Libbox.newBoxInstance(configJson, LocalResolver)
                 boxInstance = box
                 box.start()
                 isRunning = true

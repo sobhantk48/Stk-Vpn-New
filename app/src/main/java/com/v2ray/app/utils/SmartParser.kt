@@ -12,31 +12,27 @@ import java.io.StringReader
 object SmartParser {
     private const val TAG = "SmartParser"
 
-    /**
-     * تشخیص و پارس هر نوع ورودی
-     * @return لیست پروفایل‌های استخراج‌شده (ممکن است خالی باشد)
-     */
     fun detectAndParse(input: String): List<Profile> {
         val trimmed = input.trim()
         if (trimmed.isEmpty()) return emptyList()
 
         return when {
-            // لینک‌های تک‌پروفایل
             trimmed.startsWith("vless://") ||
             trimmed.startsWith("vmess://") ||
             trimmed.startsWith("trojan://") ||
-            trimmed.startsWith("ss://") -> {
+            trimmed.startsWith("ss://") ||
+            trimmed.startsWith("hysteria2://") ||
+            trimmed.startsWith("hy2://") ||
+            trimmed.startsWith("tuic://") ||
+            trimmed.startsWith("wireguard://") -> {
                 Profile.fromLink(trimmed)?.let { listOf(it) } ?: emptyList()
             }
-            // Clash YAML (با کلمه‌ی proxies)
             trimmed.contains("proxies:") || trimmed.contains("proxy-groups:") -> {
                 parseClashYAML(trimmed)
             }
-            // v2rayN JSON (با outbounds)
             trimmed.contains("\"outbounds\"") || trimmed.contains("\"inbounds\"") -> {
                 parseV2RayJSON(trimmed)
             }
-            // تلاش برای تشخیص لینک‌های چندگانه (هر خط یک لینک)
             else -> {
                 val lines = trimmed.split("\n", "\r\n")
                 val profiles = mutableListOf<Profile>()
@@ -51,9 +47,6 @@ object SmartParser {
         }
     }
 
-    /**
-     * پارس Clash YAML و استخراج پروکسی‌ها
-     */
     private fun parseClashYAML(yaml: String): List<Profile> {
         return try {
             val yamlMap = Yaml().load<StringReader>(StringReader(yaml)) as? Map<*, *>
@@ -74,12 +67,14 @@ object SmartParser {
                 val tls = proxyMap["tls"] as? Boolean ?: false
                 val fingerprint = proxyMap["fingerprint"]?.toString() ?: "chrome"
 
-                // تبدیل type Clash به نوع Profile
                 val profileType = when (type.lowercase()) {
                     "vless" -> "VLESS"
                     "vmess" -> "VMESS"
                     "trojan" -> "TROJAN"
                     "shadowsocks" -> "SHADOWSOCKS"
+                    "hysteria2" -> "HYSTERIA2"
+                    "tuic" -> "TUIC"
+                    "wireguard" -> "WIREGUARD"
                     else -> "VLESS"
                 }
 
@@ -105,9 +100,6 @@ object SmartParser {
         }
     }
 
-    /**
-     * پارس v2rayN JSON و استخراج outbound‌ها
-     */
     private fun parseV2RayJSON(json: String): List<Profile> {
         return try {
             val element = Json.parseToJsonElement(json)
@@ -140,6 +132,9 @@ object SmartParser {
                     "vmess" -> "VMESS"
                     "trojan" -> "TROJAN"
                     "shadowsocks" -> "SHADOWSOCKS"
+                    "hysteria2" -> "HYSTERIA2"
+                    "tuic" -> "TUIC"
+                    "wireguard" -> "WIREGUARD"
                     else -> continue
                 }
 

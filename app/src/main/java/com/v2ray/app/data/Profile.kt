@@ -30,7 +30,30 @@ data class Profile(
     val path: String = "",
     val host: String = "",
     val alpn: String = "",
-    val allowInsecure: Boolean = false
+    val allowInsecure: Boolean = false,
+    // Hysteria2 fields
+    val hysteriaProtocolVersion: Int = 2,
+    val hysteriaAuthPayload: String = "",
+    val hysteriaObfs: String = "",
+    val hysteriaSni: String = "",
+    val hysteriaAllowInsecure: Boolean = false,
+    val hysteriaUploadMbps: Int = 0,
+    val hysteriaDownloadMbps: Int = 0,
+    val hysteriaServerPorts: String = "",
+    // TUIC fields
+    val tuicToken: String = "",
+    val tuicUuid: String = "",
+    val tuicCongestionController: String = "cubic",
+    val tuicUdpRelayMode: String = "native",
+    val tuicReduceRTT: Boolean = false,
+    val tuicDisableSNI: Boolean = false,
+    // WireGuard fields
+    val wgLocalAddress: String = "",
+    val wgPrivateKey: String = "",
+    val wgPeerPublicKey: String = "",
+    val wgPreSharedKey: String = "",
+    val wgMtu: Int = 1420,
+    val wgReserved: String = ""
 ) : Serializable {
 
     fun getEffectiveSni(): String {
@@ -43,6 +66,9 @@ data class Profile(
             "VMESS" -> buildVmessJson()
             "TROJAN" -> buildTrojanJson()
             "SHADOWSOCKS" -> buildShadowsocksJson()
+            "HYSTERIA2" -> buildHysteria2Json()
+            "TUIC" -> buildTuicJson()
+            "WIREGUARD" -> buildWireGuardJson()
             else -> buildVlessJson()
         }
         return outbound.toString()
@@ -124,6 +150,88 @@ data class Profile(
         }
     }
 
+    private fun buildHysteria2Json(): JsonObject {
+        return buildJsonObject {
+            put("protocol", "hysteria2")
+            put("settings", buildJsonObject {
+                put("servers", JsonArray(listOf(
+                    buildJsonObject {
+                        put("address", address)
+                        put("port", port)
+                        put("password", hysteriaAuthPayload.ifEmpty { uuid })
+                        put("sni", hysteriaSni.ifEmpty { address })
+                        put("allowInsecure", hysteriaAllowInsecure)
+                        if (hysteriaObfs.isNotBlank()) {
+                            put("obfs", hysteriaObfs)
+                        }
+                        if (hysteriaUploadMbps > 0) {
+                            put("uploadMbps", hysteriaUploadMbps)
+                        }
+                        if (hysteriaDownloadMbps > 0) {
+                            put("downloadMbps", hysteriaDownloadMbps)
+                        }
+                    }
+                )))
+            })
+        }
+    }
+
+    private fun buildTuicJson(): JsonObject {
+        return buildJsonObject {
+            put("protocol", "tuic")
+            put("settings", buildJsonObject {
+                put("servers", JsonArray(listOf(
+                    buildJsonObject {
+                        put("address", address)
+                        put("port", port)
+                        put("uuid", tuicUuid.ifEmpty { uuid })
+                        put("password", tuicToken.ifEmpty { "password" })
+                        put("sni", sni.ifEmpty { address })
+                        put("allowInsecure", allowInsecure)
+                        if (tuicCongestionController.isNotBlank()) {
+                            put("congestionController", tuicCongestionController)
+                        }
+                        if (tuicUdpRelayMode.isNotBlank()) {
+                            put("udpRelayMode", tuicUdpRelayMode)
+                        }
+                        if (tuicReduceRTT) {
+                            put("reduceRTT", true)
+                        }
+                        if (tuicDisableSNI) {
+                            put("disableSNI", true)
+                        }
+                    }
+                )))
+            })
+        }
+    }
+
+    private fun buildWireGuardJson(): JsonObject {
+        return buildJsonObject {
+            put("protocol", "wireguard")
+            put("settings", buildJsonObject {
+                put("servers", JsonArray(listOf(
+                    buildJsonObject {
+                        put("address", address)
+                        put("port", port)
+                        put("localAddress", wgLocalAddress.ifEmpty { "10.0.0.2/32" })
+                        put("privateKey", wgPrivateKey)
+                        put("peerPublicKey", wgPeerPublicKey)
+                        if (wgPreSharedKey.isNotBlank()) {
+                            put("preSharedKey", wgPreSharedKey)
+                        }
+                        if (wgMtu > 0) {
+                            put("mtu", wgMtu)
+                        }
+                        if (wgReserved.isNotBlank()) {
+                            put("reserved", wgReserved)
+                        }
+                    }
+                )))
+            })
+        }
+    }
+
     private fun buildStreamSettings(): JsonObject {
         return buildJsonObject {
             put("network", network.ifEmpty { "tcp" })
@@ -158,6 +266,9 @@ data class Profile(
                     link.startsWith("vmess://") -> parseVmess(link)
                     link.startsWith("trojan://") -> parseTrojan(link)
                     link.startsWith("ss://") -> parseShadowsocks(link)
+                    link.startsWith("hysteria2://") || link.startsWith("hy2://") -> parseHysteria2(link)
+                    link.startsWith("tuic://") -> parseTuic(link)
+                    link.startsWith("wireguard://") -> parseWireGuard(link)
                     else -> null
                 }
             } catch (_: Exception) { null }
@@ -271,6 +382,117 @@ data class Profile(
                 port = port,
                 uuid = password,
                 encryption = method
+            )
+        }
+
+        private fun parseHysteria2(link: String): Profile {
+            val uri = Uri.parse(link.replace("hysteria2://", "http://").replace("hy2://", "http://"))
+            val userInfo = uri.userInfo ?: ""
+            val host = uri.host ?: ""
+            val port = uri.port ?: 443
+            val query = uri.query ?: ""
+            val fragment = uri.fragment ?: ""
+
+            val params = query.split("&").associate {
+                val parts = it.split("=")
+                if (parts.size == 2) parts[0] to Uri.decode(parts[1])
+                else "" to ""
+            }
+
+            val auth = userInfo
+            val sni = params["sni"] ?: host
+            val insecure = params["insecure"] == "1" || params["insecure"] == "true"
+            val obfs = params["obfs-password"] ?: ""
+            val up = params["upmbps"]?.toIntOrNull() ?: 0
+            val down = params["downmbps"]?.toIntOrNull() ?: 0
+
+            return Profile(
+                name = fragment.ifEmpty { host },
+                type = "HYSTERIA2",
+                address = host,
+                port = port,
+                uuid = auth,
+                sni = sni,
+                allowInsecure = insecure,
+                hysteriaAuthPayload = auth,
+                hysteriaSni = sni,
+                hysteriaAllowInsecure = insecure,
+                hysteriaObfs = obfs,
+                hysteriaUploadMbps = up,
+                hysteriaDownloadMbps = down,
+                hysteriaProtocolVersion = 2
+            )
+        }
+
+        private fun parseTuic(link: String): Profile {
+            val uri = Uri.parse(link.replace("tuic://", "http://"))
+            val userInfo = uri.userInfo ?: ""
+            val host = uri.host ?: ""
+            val port = uri.port ?: 443
+            val query = uri.query ?: ""
+            val fragment = uri.fragment ?: ""
+
+            val params = query.split("&").associate {
+                val parts = it.split("=")
+                if (parts.size == 2) parts[0] to Uri.decode(parts[1])
+                else "" to ""
+            }
+
+            val uuid = userInfo.substringBefore(":")
+            val token = userInfo.substringAfter(":", "")
+            val sni = params["sni"] ?: host
+            val allowInsecure = params["allow_insecure"] == "1"
+            val congestion = params["congestion_control"] ?: "cubic"
+            val udpRelay = params["udp_relay_mode"] ?: "native"
+            val disableSNI = params["disable_sni"] == "1"
+            val reduceRTT = params["reduce_rtt"] == "1"
+
+            return Profile(
+                name = fragment.ifEmpty { host },
+                type = "TUIC",
+                address = host,
+                port = port,
+                uuid = uuid,
+                sni = sni,
+                allowInsecure = allowInsecure,
+                tuicToken = token,
+                tuicUuid = uuid,
+                tuicCongestionController = congestion,
+                tuicUdpRelayMode = udpRelay,
+                tuicDisableSNI = disableSNI,
+                tuicReduceRTT = reduceRTT
+            )
+        }
+
+        private fun parseWireGuard(link: String): Profile {
+            val uri = Uri.parse(link.replace("wireguard://", "http://"))
+            val host = uri.host ?: ""
+            val port = uri.port ?: 51820
+            val query = uri.query ?: ""
+            val fragment = uri.fragment ?: ""
+
+            val params = query.split("&").associate {
+                val parts = it.split("=")
+                if (parts.size == 2) parts[0] to Uri.decode(parts[1])
+                else "" to ""
+            }
+
+            val privateKey = params["privateKey"] ?: ""
+            val publicKey = params["publicKey"] ?: ""
+            val localAddress = params["address"] ?: "10.0.0.2/32"
+            val mtu = params["mtu"]?.toIntOrNull() ?: 1420
+            val reserved = params["reserved"] ?: ""
+
+            return Profile(
+                name = fragment.ifEmpty { host },
+                type = "WIREGUARD",
+                address = host,
+                port = port,
+                wgPrivateKey = privateKey,
+                wgPeerPublicKey = publicKey,
+                wgLocalAddress = localAddress,
+                wgMtu = mtu,
+                wgReserved = reserved
             )
         }
     }

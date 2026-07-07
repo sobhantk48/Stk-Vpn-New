@@ -19,7 +19,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.v2ray.app.desync.DesyncManager
 import com.v2ray.app.model.SplitMode
 import com.v2ray.app.service.V2RayService
 import com.v2ray.app.ui.theme.*
@@ -50,10 +49,6 @@ fun SettingsScreen(
             .map { it.packageName }
             .sorted()
     }
-
-    var fragmentEnabled by remember { mutableStateOf(DesyncManager.isEnabled()) }
-    var sniChunk by remember { mutableStateOf(DesyncManager.getConfig().sniChunk) }
-    var fragmentDelay by remember { mutableStateOf(DesyncManager.getConfig().fragmentDelay) }
 
     val backupStatus by vm.backupStatus.collectAsStateWithLifecycle()
     val backupFiles = remember { vm.getBackupFiles() }
@@ -96,7 +91,7 @@ fun SettingsScreen(
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Theme
+            // ===== Theme =====
             Text(
                 text = "🎨 Theme",
                 color = CyanAccent,
@@ -129,7 +124,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Kill Switch
+            // ===== Kill Switch =====
             Text(
                 text = "🔒 Kill Switch",
                 color = CyanAccent,
@@ -170,7 +165,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Split Tunneling
+            // ===== Split Tunneling =====
             Text(
                 text = "📱 Split Tunneling",
                 color = CyanAccent,
@@ -285,7 +280,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Backup & Restore
+            // ===== Backup & Restore =====
             Text(
                 text = "💾 Backup & Restore",
                 color = CyanAccent,
@@ -379,93 +374,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Desync / Fragment
-            Text(
-                text = "🔀 DPI Evasion (Desync)",
-                color = CyanAccent,
-                fontSize = 18.sp,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            Card(
-                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Enable Fragment",
-                            color = WhiteText,
-                            fontSize = 14.sp
-                        )
-                        Switch(
-                            checked = fragmentEnabled,
-                            onCheckedChange = {
-                                fragmentEnabled = it
-                                if (it) {
-                                    DesyncManager.enable(
-                                        DesyncManager.Config(
-                                            enableFragment = true,
-                                            sniChunk = sniChunk,
-                                            fragmentDelay = fragmentDelay
-                                        )
-                                    )
-                                } else {
-                                    DesyncManager.disable()
-                                }
-                            }
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "SNI Chunk Size: $sniChunk",
-                            color = WhiteText.copy(0.7f),
-                            fontSize = 12.sp
-                        )
-                    }
-                    Slider(
-                        value = sniChunk.toFloat(),
-                        onValueChange = { sniChunk = it.toInt() },
-                        valueRange = 1f..10f,
-                        steps = 9,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Fragment Delay: ${fragmentDelay}ms",
-                            color = WhiteText.copy(0.7f),
-                            fontSize = 12.sp
-                        )
-                    }
-                    Slider(
-                        value = fragmentDelay.toFloat(),
-                        onValueChange = { fragmentDelay = it.toLong() },
-                        valueRange = 100f..1000f,
-                        steps = 9,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Text(
-                        text = if (fragmentEnabled) "🟢 Fragment: ON" else "🔴 Fragment: OFF",
-                        color = if (fragmentEnabled) GreenSuccess else RedError,
-                        fontSize = 12.sp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
+            // ===== Save Button =====
             Button(
                 onClick = { /* Save settings */ },
                 modifier = Modifier.fillMaxWidth(),

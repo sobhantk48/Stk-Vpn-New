@@ -15,6 +15,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.v2ray.app.MainActivity
 import com.v2ray.app.R
+import com.v2ray.app.data.Profile
 import com.v2ray.app.model.SplitMode
 import com.v2ray.app.utils.Logger
 import com.v2ray.app.v2ray.SingBoxManager
@@ -28,6 +29,7 @@ class V2RayService : VpnService() {
         const val NOTIFICATION_ID = 1001
         const val CHANNEL_ID = "v2ray_channel"
         const val EXTRA_CONFIG = "config"
+        const val EXTRA_PROFILE = "profile" // new: serialized Profile
         const val EXTRA_PROFILE_ID = "profile_id"
 
         var killSwitchEnabled = false
@@ -59,10 +61,21 @@ class V2RayService : VpnService() {
         try {
             when (intent?.action) {
                 ACTION_CONNECT -> {
-                    val config = intent.getStringExtra(EXTRA_CONFIG) ?: return START_NOT_STICKY
+                    val profile = intent.getSerializableExtra(EXTRA_PROFILE) as? Profile
+                    val config = intent.getStringExtra(EXTRA_CONFIG)
                     val profileId = intent.getStringExtra(EXTRA_PROFILE_ID) ?: ""
-                    Logger.i("Received CONNECT action for profile: $profileId")
-                    startVpn(config, profileId)
+
+                    if (profile != null) {
+                        Logger.i("Received CONNECT with Profile: ${profile.name}")
+                        startVpn(profile = profile, profileId = profileId)
+                    } else if (config != null) {
+                        Logger.i("Received CONNECT with config (fallback)")
+                        // Fallback: still support old config
+                        startVpn(config = config, profileId = profileId)
+                    } else {
+                        Logger.e("No profile or config provided")
+                        return START_NOT_STICKY
+                    }
                 }
                 ACTION_DISCONNECT -> {
                     Logger.i("Received DISCONNECT action")
@@ -78,7 +91,7 @@ class V2RayService : VpnService() {
 
     override fun onBind(intent: Intent): IBinder = binder
 
-    private fun startVpn(config: String, profileId: String) {
+    private fun startVpn(profile: Profile? = null, config: String? = null, profileId: String = "") {
         if (isRunning) {
             Logger.d("VPN already running, stopping first")
             stopVpn()
@@ -123,8 +136,17 @@ class V2RayService : VpnService() {
                     throw Exception("VPN interface fd is invalid")
                 }
 
-                Logger.i("Starting sing-box with config: $config")
-                val result = singBoxManager.startV2Ray(config, fd)
+                // Build config
+                val finalConfig = if (profile != null) {
+                    singBoxManager.buildSingBoxConfig(profile)
+                } else if (config != null) {
+                    config
+                } else {
+                    throw Exception("No config available")
+                }
+
+                Logger.i("Starting sing-box with config length: ${finalConfig.length}")
+                val result = singBoxManager.startV2RayWithConfig(finalConfig, fd)
                 if (result.isSuccess) {
                     isRunning = true
                     binder.setStatus("Connected")
@@ -179,11 +201,9 @@ class V2RayService : VpnService() {
     }
 
     override fun protect(socket: Int): Boolean {
-        // در صورت فعال بودن Kill Switch و عدم اتصال، ترافیک را مسدود کن
         if (killSwitchEnabled && !isRunning) {
             return false
         }
-        // در غیر این صورت، محافظت کن
         return super.protect(socket)
     }
 

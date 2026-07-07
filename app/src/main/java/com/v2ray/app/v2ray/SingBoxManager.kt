@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import org.json.JSONArray
+import org.json.JSONObject
+import com.v2ray.app.data.Profile
 
 class SingBoxManager(private val context: Context) {
     companion object {
@@ -24,6 +27,88 @@ class SingBoxManager(private val context: Context) {
     private var isRunning = false
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    fun buildSingBoxConfig(profile: Profile): String {
+        return try {
+            val templateJson = context.assets.open("singbox_config.json")
+                .bufferedReader().use { it.readText() }
+            val root = JSONObject(templateJson)
+
+            val outboundJson = JSONObject(profile.toV2RayConfig())
+            if (!outboundJson.has("tag")) {
+                outboundJson.put("tag", "proxy")
+            }
+
+            val outboundsArray = root.getJSONArray("outbounds")
+            if (outboundsArray.length() > 0) {
+                outboundsArray.put(0, outboundJson)
+            } else {
+                outboundsArray.put(outboundJson)
+            }
+
+            val route = root.optJSONObject("route")
+            if (route != null) {
+                val rules = route.optJSONArray("rules")
+                if (rules == null || rules.length() == 0) {
+                    val newRules = JSONArray()
+                    newRules.put(JSONObject().apply {
+                        put("outbound", "proxy")
+                        put("network", "tcp,udp")
+                        put("ip_version", 4)
+                    })
+                    route.put("rules", newRules)
+                } else {
+                    for (i in 0 until rules.length()) {
+                        val rule = rules.getJSONObject(i)
+                        if (rule.optString("outbound") == "direct") {
+                            rule.put("outbound", "proxy")
+                            break
+                        }
+                    }
+                }
+            }
+
+            root.toString(2)
+        } catch (e: Exception) {
+            Log.e(TAG, "buildSingBoxConfig failed", e)
+            buildFallbackConfig(profile)
+        }
+    }
+
+    private fun buildFallbackConfig(profile: Profile): String {
+        return JSONObject().apply {
+            put("log", JSONObject().apply { put("level", "info") })
+            put("inbounds", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("type", "tun")
+                    put("tag", "tun-in")
+                    put("interface_name", "tun0")
+                    put("address", JSONArray(listOf("172.19.0.1/30")))
+                    put("mtu", 9000)
+                    put("auto_route", true)
+                })
+            })
+            put("outbounds", JSONArray().apply {
+                put(JSONObject(profile.toV2RayConfig()))
+                put(JSONObject().apply {
+                    put("type", "direct")
+                    put("tag", "direct")
+                })
+                put(JSONObject().apply {
+                    put("type", "block")
+                    put("tag", "block")
+                })
+            })
+            put("route", JSONObject().apply {
+                put("rules", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("outbound", "proxy")
+                        put("network", "tcp,udp")
+                    })
+                })
+            })
+        }.toString(2)
+    }
+
     suspend fun startV2Ray(configJson: String, vpnFd: Int): Result<Unit> =
         withContext(Dispatchers.IO) {
             try {
@@ -31,7 +116,6 @@ class SingBoxManager(private val context: Context) {
                     stopV2Ray().getOrThrow()
                 }
 
-                // شروع BoxService با کانفیگ
                 val intent = Intent(context, BoxService::class.java).apply {
                     putExtra("config", configJson)
                 }
@@ -48,6 +132,9 @@ class SingBoxManager(private val context: Context) {
                 Result.failure(e)
             }
         }
+
+    suspend fun startV2RayWithConfig(configJson: String, vpnFd: Int): Result<Unit> =
+        startV2Ray(configJson, vpnFd)
 
     suspend fun stopV2Ray(): Result<Unit> =
         withContext(Dispatchers.IO) {

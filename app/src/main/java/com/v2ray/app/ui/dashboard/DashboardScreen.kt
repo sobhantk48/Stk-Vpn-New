@@ -35,6 +35,7 @@ fun DashboardScreen(
     val isConnected by vm.isConnected.collectAsStateWithLifecycle()
     val pings by vm.pings.collectAsStateWithLifecycle()
 
+    var showServerList by remember { mutableStateOf(false) }
     var sniTunnelEnabled by remember { mutableStateOf(false) }
     var frontingEnabled by remember { mutableStateOf(false) }
 
@@ -135,7 +136,7 @@ fun DashboardScreen(
             QuickActionButton(
                 icon = Icons.Default.List,
                 label = "Servers",
-                onClick = { /* TODO: Open server list */ }
+                onClick = { showServerList = !showServerList }
             )
             QuickActionButton(
                 icon = Icons.Default.Speed,
@@ -206,6 +207,36 @@ fun DashboardScreen(
                 Icon(Icons.Default.AdminPanelSettings, contentDescription = null)
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("Admin", color = WhiteText, fontSize = 14.sp)
+            }
+        }
+
+        // لیست سرورها (قابل نمایش/مخفی‌سازی)
+        if (showServerList) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .padding(bottom = 8.dp),
+                colors = CardDefaults.cardColors(containerColor = DarkSurface)
+            ) {
+                if (profiles.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No profiles. Add via import.", color = WhiteText.copy(0.5f))
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(8.dp)
+                    ) {
+                        items(profiles) { profile ->
+                            ServerListItem(
+                                profile = profile,
+                                isSelected = selected?.id == profile.id,
+                                onClick = { vm.selectProfile(profile) }
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -297,5 +328,38 @@ fun BottomActionButton(
             color = WhiteText.copy(0.5f),
             fontSize = 10.sp
         )
+    }
+}
+
+@Composable
+fun ServerListItem(
+    profile: Profile,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .background(if (isSelected) PrimaryBlue.copy(alpha = 0.3f) else DarkSurface)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column {
+            Text(
+                text = profile.name,
+                color = if (isSelected) CyanAccent else WhiteText,
+                fontSize = 14.sp
+            )
+            Text(
+                text = "${profile.type} - ${profile.address}:${profile.port}",
+                color = WhiteText.copy(0.5f),
+                fontSize = 12.sp
+            )
+        }
+        if (isSelected) {
+            Icon(Icons.Default.CheckCircle, contentDescription = "Selected", tint = GreenSuccess)
+        }
     }
 }

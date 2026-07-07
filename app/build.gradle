@@ -58,6 +58,13 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion "1.5.14"
     }
+
+    sourceSets {
+        main {
+            java.srcDirs += 'src/bg/java'
+            aidl.srcDirs = ['src/main/aidl']
+        }
+    }
 }
 
 dependencies {
@@ -85,9 +92,6 @@ dependencies {
     implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
 
-    // ===== حذف شدند =====
-    // CameraX, ML Kit, OkHttp, BouncyCastle
-
     implementation files('libs/libbox.aar')
 
     implementation "androidx.room:room-runtime:2.6.1"
@@ -95,20 +99,4 @@ dependencies {
     implementation "androidx.room:room-ktx:2.6.1"
 
     implementation "androidx.datastore:datastore-preferences:1.1.0"
-}
-
-android {
-    sourceSets {
-        main {
-            java.srcDirs += 'src/bg/java'
-        }
-    }
-}
-
-android {
-    sourceSets {
-        main {
-            java.srcDirs += 'src/bg/java'
-        }
-    }
 }

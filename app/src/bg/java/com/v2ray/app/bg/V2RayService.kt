@@ -1,4 +1,4 @@
-package com.v2ray.app.service
+package com.v2ray.app.bg
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -42,9 +42,15 @@ class V2RayService : VpnService() {
     private val singBoxManager = SingBoxManager(this)
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    private val binder = ServiceBinder().apply {
+        setStatusCallback { status ->
+            Logger.i("Service status changed: $status")
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
-        Logger.i("V2RayService onCreate")
+        Logger.i("V2RayService onCreate (bg process)")
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification("Initializing...", false))
     }
@@ -69,6 +75,8 @@ class V2RayService : VpnService() {
         }
         return START_STICKY
     }
+
+    override fun onBind(intent: Intent): android.os.IBinder = binder
 
     private fun startVpn(config: String, profileId: String) {
         if (isRunning) {
@@ -119,6 +127,7 @@ class V2RayService : VpnService() {
                 val result = singBoxManager.startV2Ray(config, fd)
                 if (result.isSuccess) {
                     isRunning = true
+                    binder.setStatus("Connected")
                     mainHandler.post {
                         updateNotification("🟢 Connected", true)
                     }
@@ -126,12 +135,14 @@ class V2RayService : VpnService() {
                 } else {
                     val error = result.exceptionOrNull()?.message ?: "Unknown error"
                     Logger.e("V2Ray start failed: $error", result.exceptionOrNull())
+                    binder.setError(error)
                     mainHandler.post {
                         updateNotification("❌ Connection Failed: $error", false)
                     }
                 }
             } catch (e: Exception) {
                 Logger.e("startVpn error", e)
+                binder.setError(e.message ?: "Unknown error")
                 mainHandler.post {
                     updateNotification("❌ Error: ${e.message}", false)
                 }
@@ -154,6 +165,7 @@ class V2RayService : VpnService() {
                 vpnInterface?.close()
                 vpnInterface = null
                 isRunning = false
+                binder.setStatus("Disconnected")
                 mainHandler.post {
                     updateNotification("⏹️ Disconnected", false)
                 }

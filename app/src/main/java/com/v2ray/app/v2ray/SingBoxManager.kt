@@ -1,24 +1,22 @@
-package com.v2ray.app.v2ray
-
-import android.content.Context
+package com.v2ray.app.v2ray                     
+import android.content.Context                  
 import android.util.Log
-import com.v2ray.app.data.Profile
-import com.v2ray.app.bg.LocalResolver
+import com.v2ray.app.data.Profile               
 import io.nekohasekai.libbox.BoxInstance
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.PlatformInterface
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.asStateFlow      
 import kotlinx.coroutines.flow.update
-import org.json.JSONArray
+import org.json.JSONArray                       
 import org.json.JSONObject
 
 class SingBoxManager(
-    private val context: Context,
+    private val context: Context,                   
     private val platformInterface: PlatformInterface
-) {
+) {                                                 
     companion object {
         private const val TAG = "SingBoxManager"
         enum class CoreState {
@@ -27,6 +25,16 @@ class SingBoxManager(
 
         private val _coreState = MutableStateFlow(CoreState.IDLE)
         val coreState: StateFlow<CoreState> = _coreState.asStateFlow()
+
+        // لود قطعی کتابخانه نیتیو در زمان اجرای برنامه
+        init {
+            try {
+                System.loadLibrary("box")
+                Log.d(TAG, "📦 libbox.so loaded successfully")
+            } catch (e: UnsatisfiedLinkError) {
+                Log.e(TAG, "❌ Failed to load native library libbox.so", e)
+            }
+        }
     }
 
     private var isRunning = false
@@ -81,28 +89,6 @@ class SingBoxManager(
                 outboundsArray.put(outboundJson)
             }
 
-            val route = root.optJSONObject("route")
-            if (route != null) {
-                val rules = route.optJSONArray("rules")
-                if (rules == null || rules.length() == 0) {
-                    val newRules = JSONArray()
-                    newRules.put(JSONObject().apply {
-                        put("outbound", "proxy")
-                        put("network", "tcp,udp")
-                        put("ip_version", 4)
-                    })
-                    route.put("rules", newRules)
-                } else {
-                    for (i in 0 until rules.length()) {
-                        val rule = rules.getJSONObject(i)
-                        if (rule.optString("outbound") == "direct") {
-                            rule.put("outbound", "proxy")
-                            break
-                        }
-                    }
-                }
-            }
-
             root.toString(2)
         } catch (e: Exception) {
             Log.e(TAG, "buildSingBoxConfig failed", e)
@@ -119,28 +105,11 @@ class SingBoxManager(
                     put("tag", "tun-in")
                     put("interface_name", "tun0")
                     put("address", JSONArray(listOf("172.19.0.1/30")))
-                    put("mtu", 9000)
                     put("auto_route", true)
                 })
             })
             put("outbounds", JSONArray().apply {
                 put(JSONObject(profile.toV2RayConfig()))
-                put(JSONObject().apply {
-                    put("type", "direct")
-                    put("tag", "direct")
-                })
-                put(JSONObject().apply {
-                    put("type", "block")
-                    put("tag", "block")
-                })
-            })
-            put("route", JSONObject().apply {
-                put("rules", JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("outbound", "proxy")
-                        put("network", "tcp,udp")
-                    })
-                })
             })
         }.toString(2)
     }
@@ -152,15 +121,17 @@ class SingBoxManager(
                     stopV2Ray().getOrThrow()
                 }
 
-                // ارسال PlatformInterface به Libbox
-                val box = Libbox.newBoxInstance(configJson, LocalResolver, platformInterface)
+                // استفاده از متد نیتیو متناسب با نوع داده یا فرستادن null/یک نمونه مستقیم از کلاسی که الگو را پاس کند
+                // اگر کتابخانه شما برای حمل‌ونقل محلی داکیومنت دارد، نباید شی لوکال ریزولور پروژه خودت را مستقیماً اینجا بفرستی.
+                // اگر متد بدون آرگومان دوم در این نسخه کار می‌کند، یا نیاز به پارامتر JNI دارد:
+                val box = Libbox.newBoxInstance(configJson, null, platformInterface)
                 boxInstance = box
                 box.start()
                 isRunning = true
                 _coreState.update { CoreState.CONNECTED }
-                Log.d(TAG, "✅ Sing-box started successfully with PlatformInterface")
+                Log.d(TAG, "✅ Sing-box started successfully")
                 Result.success(Unit)
-            } catch (e: Exception) {
+            } catch (e: Throwable) { // گرفتن تمام خطاهای ساختاری JNI و نیتیو برای جلوگیری از کرش مستقیم
                 Log.e(TAG, "❌ startV2Ray failed", e)
                 _coreState.update { CoreState.ERROR }
                 Result.failure(e)

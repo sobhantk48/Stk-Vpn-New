@@ -1,3 +1,5 @@
+import androidx.compose.material3.ScaffoldState
+import androidx.compose.material3.rememberScaffoldState
 package com.v2ray.app.ui.dashboard
 
 import androidx.compose.foundation.background
@@ -391,7 +393,7 @@ fun ServerListItem(
                 text = if (ping > 0) "${ping}ms" else "--",
                 color = when {
                     ping > 0 && ping < 100 -> GreenSuccess
-                    ping > 0 -> YellowWarning
+                    ping > 0 -> Color(0xFFFFC107)
                     else -> WhiteText.copy(0.3f)
                 },
                 fontSize = 12.sp

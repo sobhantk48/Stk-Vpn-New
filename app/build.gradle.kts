@@ -118,3 +118,13 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
+    // برای collectAsStateWithLifecycle
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+    // برای decompose
+    implementation("com.arkivanov.decompose:decompose:2.2.1")
+    implementation("com.arkivanov.decompose:decompose-compose:2.2.1")
+    // برای collectAsStateWithLifecycle
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+    // برای decompose
+    implementation("com.arkivanov.decompose:decompose:2.2.1")
+    implementation("com.arkivanov.decompose:decompose-compose:2.2.1")

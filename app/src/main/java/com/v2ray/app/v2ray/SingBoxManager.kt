@@ -1041,3 +1041,7 @@ class SingBoxManager(
 
 // Extension function for Int
 private fun Int.ifZero(default: Int): Int = if (this == 0) default else this
+
+    fun getTrafficStats(): TrafficStats? {
+        return trafficStats
+    }

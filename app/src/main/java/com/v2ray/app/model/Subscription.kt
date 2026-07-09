@@ -9,7 +9,7 @@ data class Subscription(
     val name: String = "",
     val enabled: Boolean = true,
     val autoUpdate: Boolean = false,
-    val updateInterval: Long = 6, // hours
+    val updateInterval: Long = 6,
     val lastUpdate: Long = 0,
     val nodeCount: Int = 0,
     val selected: Boolean = false

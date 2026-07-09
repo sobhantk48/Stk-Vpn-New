@@ -3,6 +3,9 @@ pluginManagement {
         google()
         mavenCentral()
         gradlePluginPortal()
+        maven {
+            url = uri("https://maven.nekohasekai.me")
+        }
     }
 }
 dependencyResolutionManagement {
@@ -16,4 +19,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "Stkvpn"
-include(":app", ":core")
+include(":app")

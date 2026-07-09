@@ -7,10 +7,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ClearAll
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -30,13 +29,15 @@ fun LogViewerScreen(
     onBack: () -> Unit
 ) {
     val vm: MainViewModel = hiltViewModel()
-    val logs by vm.logs.collectAsStateWithLifecycle()
+    val filteredLogs by vm.filteredLogs.collectAsStateWithLifecycle()
+    val logFilter by vm.logFilter.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    // اسکرول به ابتدای لیست (جدیدترین لاگ‌ها) هنگام تغییر
-    LaunchedEffect(logs.size) {
-        if (logs.isNotEmpty()) {
+    var filterText by remember { mutableStateOf(logFilter) }
+
+    LaunchedEffect(filteredLogs.size) {
+        if (filteredLogs.isNotEmpty()) {
             listState.scrollToItem(0)
         }
     }
@@ -63,34 +64,60 @@ fun LogViewerScreen(
         },
         containerColor = DarkBackground
     ) { paddingValues ->
-        if (logs.isEmpty()) {
-            Box(
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // نوار جستجو
+            OutlinedTextField(
+                value = filterText,
+                onValueChange = { 
+                    filterText = it
+                    vm.setLogFilter(it)
+                },
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No logs yet.\nConnect to VPN to see logs.",
-                    color = WhiteText.copy(0.5f),
-                    fontSize = 16.sp
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(horizontal = 8.dp),
-                state = listState,
-                reverseLayout = false
-            ) {
-                items(
-                    items = logs,
-                    key = { it.timestamp }
-                ) { entry ->
-                    LogItem(entry = entry)
-                    Divider(color = WhiteText.copy(0.1f))
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                placeholder = { Text("Search logs...", color = WhiteText.copy(0.5f)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", tint = WhiteText.copy(0.5f)) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = WhiteText.copy(0.3f),
+                    unfocusedBorderColor = WhiteText.copy(0.2f),
+                    focusedTextColor = WhiteText,
+                    unfocusedTextColor = WhiteText
+                ),
+                singleLine = true
+            )
+
+            if (filteredLogs.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (logFilter.isNotEmpty()) "No logs match your search." else "No logs yet.\nConnect to VPN to see logs.",
+                        color = WhiteText.copy(0.5f),
+                        fontSize = 16.sp
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 8.dp),
+                    state = listState,
+                    reverseLayout = false
+                ) {
+                    items(
+                        items = filteredLogs,
+                        key = { it.timestamp }
+                    ) { entry ->
+                        LogItem(entry = entry)
+                        Divider(color = WhiteText.copy(0.1f))
+                    }
                 }
             }
         }

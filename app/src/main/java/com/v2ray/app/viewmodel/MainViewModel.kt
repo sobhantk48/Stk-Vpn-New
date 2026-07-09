@@ -53,7 +53,8 @@ data class LogEntry(
 @Serializable
 data class TrafficData(
     val download: Long = 0,
-    val upload: Long = 0
+    val upload: Long = 0,
+    val connectionTime: Long = 0 // در ثانیه
 )
 
 sealed class BackupStatus {
@@ -99,9 +100,16 @@ class MainViewModel @Inject constructor(
     private val _logs = MutableStateFlow<List<LogEntry>>(emptyList())
     val logs: StateFlow<List<LogEntry>> = _logs.asStateFlow()
 
-    // ================== Traffic ==================
+    // ================== Traffic & Time ==================
     private val _traffic = MutableStateFlow<TrafficData>(TrafficData())
     val traffic: StateFlow<TrafficData> = _traffic.asStateFlow()
+
+    // ================== Search Filter for Logs ==================
+    private val _logFilter = MutableStateFlow("")
+    val logFilter: StateFlow<String> = _logFilter.asStateFlow()
+
+    private val _filteredLogs = MutableStateFlow<List<LogEntry>>(emptyList())
+    val filteredLogs: StateFlow<List<LogEntry>> = _filteredLogs.asStateFlow()
 
     private var activity: MainActivity? = null
     private var currentProfile: Profile? = null
@@ -138,6 +146,7 @@ class MainViewModel @Inject constructor(
             if (_logs.value.size > 1000) {
                 _logs.value = _logs.value.take(1000)
             }
+            applyLogFilter()
         }
     }
 
@@ -146,7 +155,8 @@ class MainViewModel @Inject constructor(
             if (intent.action != V2RayService.ACTION_TRAFFIC_UPDATE) return
             val download = intent.getLongExtra(V2RayService.EXTRA_TRAFFIC_DOWNLOAD, 0)
             val upload = intent.getLongExtra(V2RayService.EXTRA_TRAFFIC_UPLOAD, 0)
-            _traffic.value = TrafficData(download, upload)
+            val connectionTime = intent.getLongExtra(V2RayService.EXTRA_CONNECTION_TIME, 0)
+            _traffic.value = TrafficData(download, upload, connectionTime)
         }
     }
 
@@ -169,6 +179,24 @@ class MainViewModel @Inject constructor(
 
     fun clearLogs() {
         _logs.value = emptyList()
+        applyLogFilter()
+    }
+
+    fun setLogFilter(filter: String) {
+        _logFilter.value = filter
+        applyLogFilter()
+    }
+
+    private fun applyLogFilter() {
+        val filter = _logFilter.value.lowercase(Locale.getDefault())
+        if (filter.isEmpty()) {
+            _filteredLogs.value = _logs.value
+        } else {
+            _filteredLogs.value = _logs.value.filter { entry ->
+                entry.message.lowercase(Locale.getDefault()).contains(filter) ||
+                entry.level.lowercase(Locale.getDefault()).contains(filter)
+            }
+        }
     }
 
     fun clearError() {

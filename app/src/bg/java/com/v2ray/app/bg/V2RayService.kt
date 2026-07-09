@@ -23,6 +23,8 @@ import io.nekohasekai.libbox.PlatformInterface
 import io.nekohasekai.libbox.TunOptions
 import kotlinx.coroutines.*
 import java.text.DecimalFormat
+import java.text.SimpleDateFormat
+import java.util.*
 
 class V2RayService : VpnService(), PlatformInterface {
     companion object {
@@ -38,6 +40,7 @@ class V2RayService : VpnService(), PlatformInterface {
         const val EXTRA_LOG_LEVEL = "log_level"
         const val EXTRA_TRAFFIC_DOWNLOAD = "traffic_download"
         const val EXTRA_TRAFFIC_UPLOAD = "traffic_upload"
+        const val EXTRA_CONNECTION_TIME = "connection_time"
         const val NOTIFICATION_ID = 1001
         const val CHANNEL_ID = "v2ray_channel"
         const val EXTRA_CONFIG = "config"
@@ -56,11 +59,13 @@ class V2RayService : VpnService(), PlatformInterface {
     private val singBoxManager = SingBoxManager(this, this)
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    // آمار ترافیک
+    // آمار ترافیک و زمان
     private var trafficJob: Job? = null
     private var lastDownload = 0L
     private var lastUpload = 0L
+    private var connectionStartTime: Long = 0L
     private val decimalFormat = DecimalFormat("#.##")
+    private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
     private val binder = ServiceBinder().apply {
         setStatusCallback { status ->
@@ -216,9 +221,10 @@ class V2RayService : VpnService(), PlatformInterface {
             stopVpn()
         }
 
-        // ریست آمار
+        // ریست آمار و زمان
         lastDownload = 0L
         lastUpload = 0L
+        connectionStartTime = System.currentTimeMillis()
 
         serviceScope.launch {
             try {
@@ -241,7 +247,7 @@ class V2RayService : VpnService(), PlatformInterface {
                         updateNotification("🟢 Connected", true)
                         sendStatusBroadcast(true)
                     }
-                    // شروع ارسال آمار
+                    // شروع ارسال آمار و زمان
                     startTrafficMonitoring()
                     Logger.i("V2Ray started successfully")
                 } else {
@@ -283,8 +289,8 @@ class V2RayService : VpnService(), PlatformInterface {
                 isRunning = false
                 binder.setStatus("Disconnected")
                 sendLogBroadcast("VPN disconnected", "INFO")
-                // ارسال آمار صفر
-                sendTrafficBroadcast(0, 0)
+                // ارسال آمار صفر و زمان صفر
+                sendTrafficBroadcast(0, 0, 0)
                 mainHandler.post {
                     updateNotification("⏹️ Disconnected", false)
                     sendStatusBroadcast(false)
@@ -300,29 +306,28 @@ class V2RayService : VpnService(), PlatformInterface {
         }
     }
 
-    // ================== Traffic Monitoring ==================
+    // ================== Traffic & Time Monitoring ==================
 
     private fun startTrafficMonitoring() {
         trafficJob?.cancel()
         trafficJob = serviceScope.launch {
             while (isRunning) {
                 try {
-                    // دریافت آمار از sing-box
                     val stats = singBoxManager.getTrafficStats()
                     if (stats != null) {
                         val download = stats.downloadBytes
                         val upload = stats.uploadBytes
-                        // ارسال فقط در صورت تغییر
+                        val elapsed = (System.currentTimeMillis() - connectionStartTime) / 1000
                         if (download != lastDownload || upload != lastUpload) {
                             lastDownload = download
                             lastUpload = upload
-                            sendTrafficBroadcast(download, upload)
+                            sendTrafficBroadcast(download, upload, elapsed)
                         }
                     }
                 } catch (e: Exception) {
                     Logger.e("Traffic monitoring error", e)
                 }
-                delay(1000) // هر ۱ ثانیه یکبار
+                delay(1000)
             }
         }
     }
@@ -332,10 +337,11 @@ class V2RayService : VpnService(), PlatformInterface {
         trafficJob = null
     }
 
-    private fun sendTrafficBroadcast(download: Long, upload: Long) {
+    private fun sendTrafficBroadcast(download: Long, upload: Long, elapsedSeconds: Long) {
         val intent = Intent(ACTION_TRAFFIC_UPDATE).apply {
             putExtra(EXTRA_TRAFFIC_DOWNLOAD, download)
             putExtra(EXTRA_TRAFFIC_UPLOAD, upload)
+            putExtra(EXTRA_CONNECTION_TIME, elapsedSeconds)
         }
         sendBroadcast(intent)
     }

@@ -1,16 +1,15 @@
 package com.v2ray.app.ui.settings
 
 import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,57 +17,56 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.v2ray.app.bg.V2RayService
 import com.v2ray.app.model.SplitMode
-import com.v2ray.app.ui.theme.*
-import com.v2ray.app.viewmodel.BackupStatus
+import com.v2ray.app.ui.theme.DarkBackground
+import com.v2ray.app.ui.theme.WhiteText
 import com.v2ray.app.viewmodel.MainViewModel
-import java.io.File
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    vm: MainViewModel,
+    vm: MainViewModel = hiltViewModel(),
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
-    val packageManager = context.packageManager
-    val scope = rememberCoroutineScope()
-
-    var isDarkTheme by remember { mutableStateOf(true) }
-
+    val isConnected by vm.isConnected.collectAsStateWithLifecycle()
+    
+    // وضعیت‌های محلی
     var killSwitchEnabled by remember { mutableStateOf(V2RayService.killSwitchEnabled) }
+    var splitTunnelingEnabled by remember { mutableStateOf(V2RayService.splitTunnelingEnabled) }
+    var splitMode by remember { mutableStateOf(V2RayService.splitMode) }
+    var selectedApps by remember { mutableStateOf(V2RayService.splitApps.toSet()) }
+    
+    // لیست اپ‌های نصب‌شده
+    var installedApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
+    var showAppSelector by remember { mutableStateOf(false) }
 
-    var splitEnabled by remember { mutableStateOf(V2RayService.splitTunnelingEnabled) }
-    var splitMode by remember { mutableStateOf(SplitMode.INCLUDE) }
-    val splitApps = remember { mutableStateListOf<String>().apply { addAll(V2RayService.splitApps) } }
-
-    val installedApps = remember {
-        packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
-            .map { it.packageName }
-            .sorted()
+    // بارگذاری لیست اپ‌ها
+    LaunchedEffect(Unit) {
+        val pm = context.packageManager
+        val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+            .filter { it.packageName != context.packageName }
+            .map { app ->
+                AppInfo(
+                    packageName = app.packageName,
+                    appName = pm.getApplicationLabel(app).toString(),
+                    icon = app.loadIcon(pm)
+                )
+            }
+            .sortedBy { it.appName }
+        installedApps = apps
     }
 
-    val backupStatus by vm.backupStatus.collectAsStateWithLifecycle()
-    val backupFiles = remember { vm.getBackupFiles() }
-
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        uri?.let {
-            context.contentResolver.openInputStream(it)?.use { inputStream ->
-                val tempFile = File(context.cacheDir, "temp_restore.json")
-                tempFile.outputStream().use { outputStream ->
-                    inputStream.copyTo(outputStream)
-                }
-                scope.launch {
-                    vm.restoreProfiles(tempFile)
-                    tempFile.delete()
-                }
-            }
-        }
+    // ذخیره‌سازی تغییرات
+    fun saveSettings() {
+        V2RayService.killSwitchEnabled = killSwitchEnabled
+        V2RayService.splitTunnelingEnabled = splitTunnelingEnabled
+        V2RayService.splitMode = splitMode
+        V2RayService.splitApps.clear()
+        V2RayService.splitApps.addAll(selectedApps)
     }
 
     Scaffold(
@@ -76,314 +74,254 @@ fun SettingsScreen(
             TopAppBar(
                 title = { Text("Settings", color = WhiteText) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, tint = WhiteText, contentDescription = "Back")
+                    IconButton(onClick = {
+                        saveSettings()
+                        onBack()
+                    }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = WhiteText)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = DarkBackground,
+                    scrolledContainerColor = DarkBackground
+                )
             )
-        }
-    ) { padding ->
+        },
+        containerColor = DarkBackground
+    ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(DarkBackground)
-                .padding(padding)
+                .padding(paddingValues)
                 .padding(16.dp)
-                .verticalScroll(rememberScrollState())
         ) {
-            // ===== Theme =====
-            Text(
-                text = "🎨 Theme",
-                color = CyanAccent,
-                fontSize = 18.sp,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
+            // Kill Switch
             Card(
-                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = DarkBackground)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = "Dark Mode",
-                        color = WhiteText,
-                        fontSize = 14.sp
-                    )
+                    Column {
+                        Text("🔒 Kill Switch", color = WhiteText, fontSize = 16.sp)
+                        Text(
+                            text = "Block all traffic if VPN disconnects",
+                            color = WhiteText.copy(0.5f),
+                            fontSize = 12.sp
+                        )
+                    }
                     Switch(
-                        checked = isDarkTheme,
-                        onCheckedChange = { isDarkTheme = it }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // ===== Kill Switch =====
-            Text(
-                text = "🔒 Kill Switch",
-                color = CyanAccent,
-                fontSize = 18.sp,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            Card(
-                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Enable Kill Switch",
-                            color = WhiteText,
-                            fontSize = 14.sp
-                        )
-                        Switch(
-                            checked = killSwitchEnabled,
-                            onCheckedChange = {
+                        checked = killSwitchEnabled,
+                        onCheckedChange = { 
+                            if (!isConnected) {
                                 killSwitchEnabled = it
-                                V2RayService.killSwitchEnabled = it
                             }
-                        )
-                    }
+                        },
+                        enabled = !isConnected
+                    )
+                }
+                if (isConnected) {
                     Text(
-                        text = "Blocks all internet traffic if VPN disconnects unexpectedly",
-                        color = WhiteText.copy(0.6f),
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(top = 4.dp)
+                        text = "⚠️ Disable VPN first to change this setting",
+                        color = WhiteText.copy(0.5f),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 12.dp, bottom = 8.dp)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ===== Split Tunneling =====
-            Text(
-                text = "📱 Split Tunneling",
-                color = CyanAccent,
-                fontSize = 18.sp,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
+            // Split Tunneling
             Card(
-                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = DarkBackground)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = "Enable Split Tunneling",
-                            color = WhiteText,
-                            fontSize = 14.sp
-                        )
+                        Column {
+                            Text("📱 Split Tunneling", color = WhiteText, fontSize = 16.sp)
+                            Text(
+                                text = "Select apps to route through VPN",
+                                color = WhiteText.copy(0.5f),
+                                fontSize = 12.sp
+                            )
+                        }
                         Switch(
-                            checked = splitEnabled,
-                            onCheckedChange = {
-                                splitEnabled = it
-                                V2RayService.splitTunnelingEnabled = it
-                            }
+                            checked = splitTunnelingEnabled,
+                            onCheckedChange = { 
+                                if (!isConnected) {
+                                    splitTunnelingEnabled = it
+                                    if (!it) {
+                                        selectedApps = emptySet()
+                                        showAppSelector = false
+                                    }
+                                }
+                            },
+                            enabled = !isConnected
                         )
                     }
 
-                    if (splitEnabled) {
-                        Spacer(modifier = Modifier.height(8.dp))
-
+                    if (splitTunnelingEnabled) {
+                        // انتخاب mode
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             FilterChip(
                                 selected = splitMode == SplitMode.INCLUDE,
-                                onClick = {
-                                    splitMode = SplitMode.INCLUDE
-                                    V2RayService.splitMode = splitMode
-                                },
-                                label = { Text("Include", fontSize = 12.sp) }
+                                onClick = { if (!isConnected) splitMode = SplitMode.INCLUDE },
+                                label = { Text("Include", color = WhiteText, fontSize = 12.sp) },
+                                modifier = Modifier.weight(1f),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = PrimaryBlue.copy(alpha = 0.3f),
+                                    selectedLabelColor = WhiteText
+                                )
                             )
                             FilterChip(
                                 selected = splitMode == SplitMode.EXCLUDE,
-                                onClick = {
-                                    splitMode = SplitMode.EXCLUDE
-                                    V2RayService.splitMode = splitMode
-                                },
-                                label = { Text("Exclude", fontSize = 12.sp) }
+                                onClick = { if (!isConnected) splitMode = SplitMode.EXCLUDE },
+                                label = { Text("Exclude", color = WhiteText, fontSize = 12.sp) },
+                                modifier = Modifier.weight(1f),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = PrimaryBlue.copy(alpha = 0.3f),
+                                    selectedLabelColor = WhiteText
+                                )
                             )
                         }
 
                         Text(
-                            text = if (splitMode == SplitMode.INCLUDE) {
-                                "Only selected apps use VPN"
-                            } else {
-                                "All apps except selected use VPN"
-                            },
-                            color = WhiteText.copy(0.6f),
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(top = 4.dp)
+                            text = if (splitMode == SplitMode.INCLUDE) 
+                                "Apps selected will use VPN" 
+                            else 
+                                "Apps selected will bypass VPN",
+                            color = WhiteText.copy(0.5f),
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Text(
-                            text = "Select Apps (${splitApps.size} selected)",
-                            color = WhiteText.copy(0.7f),
-                            fontSize = 12.sp
-                        )
-
-                        LazyColumn(
+                        Button(
+                            onClick = { showAppSelector = !showAppSelector },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(max = 200.dp)
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue.copy(alpha = 0.3f))
                         ) {
-                            items(installedApps) { pkg ->
-                                val isSelected = splitApps.contains(pkg)
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = pkg,
-                                        color = WhiteText.copy(0.8f),
-                                        fontSize = 12.sp,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Checkbox(
-                                        checked = isSelected,
-                                        onCheckedChange = {
-                                            if (isSelected) {
-                                                splitApps.remove(pkg)
-                                            } else {
-                                                splitApps.add(pkg)
-                                            }
-                                            V2RayService.splitApps.clear()
-                                            V2RayService.splitApps.addAll(splitApps)
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // ===== Backup & Restore =====
-            Text(
-                text = "💾 Backup & Restore",
-                color = CyanAccent,
-                fontSize = 18.sp,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            Card(
-                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Backup all profiles to JSON file",
-                        color = WhiteText.copy(0.7f),
-                        fontSize = 12.sp
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    vm.backupProfiles()
-                                }
-                            },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-                        ) {
-                            Icon(Icons.Default.FileUpload, contentDescription = null)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Backup", color = WhiteText)
+                            Text(
+                                text = if (showAppSelector) "Hide Apps" else "Select Apps (${selectedApps.size})",
+                                color = WhiteText,
+                                fontSize = 14.sp
+                            )
                         }
 
-                        Button(
-                            onClick = { filePickerLauncher.launch(arrayOf("application/json")) },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = GreenAccent)
-                        ) {
-                            Icon(Icons.Default.FileDownload, contentDescription = null)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Restore", color = WhiteText)
-                        }
-                    }
-
-                    when (val status = backupStatus) {
-                        is BackupStatus.Success -> {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = GreenSuccess)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(status.message, color = GreenSuccess, fontSize = 12.sp)
-                            }
-                        }
-                        is BackupStatus.Error -> {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("❌ ${status.message}", color = RedError, fontSize = 12.sp)
-                        }
-                        is BackupStatus.Idle -> {
-                            // nothing
-                        }
-                    }
-
-                    if (backupFiles.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Saved backups:",
-                            color = WhiteText.copy(0.5f),
-                            fontSize = 11.sp
-                        )
-                        backupFiles.take(3).forEach { file ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                        if (showAppSelector) {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(250.dp)
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                colors = CardDefaults.cardColors(containerColor = DarkSurface)
                             ) {
-                                Text(file.name, color = WhiteText.copy(0.6f), fontSize = 10.sp)
-                                TextButton(
-                                    onClick = {
-                                        scope.launch {
-                                            vm.restoreProfiles(file)
-                                        }
-                                    }
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(8.dp)
                                 ) {
-                                    Text("Restore", color = CyanAccent, fontSize = 10.sp)
+                                    items(installedApps) { app ->
+                                        AppSelectorItem(
+                                            app = app,
+                                            isSelected = app.packageName in selectedApps,
+                                            onToggle = {
+                                                selectedApps = if (app.packageName in selectedApps) {
+                                                    selectedApps - app.packageName
+                                                } else {
+                                                    selectedApps + app.packageName
+                                                }
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
+
+                    if (isConnected) {
+                        Text(
+                            text = "⚠️ Disable VPN first to change split tunneling",
+                            color = WhiteText.copy(0.5f),
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 12.dp, bottom = 8.dp)
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.weight(1f))
 
+            // دکمه ذخیره
             Button(
-                onClick = { /* Save settings */ },
+                onClick = {
+                    saveSettings()
+                    onBack()
+                },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                colors = ButtonDefaults.buttonColors(containerColor = GreenSuccess)
             ) {
-                Text("Save Settings", color = WhiteText)
+                Text("💾 Save Settings", color = WhiteText, fontSize = 16.sp)
             }
+        }
+    }
+}
+
+data class AppInfo(
+    val packageName: String,
+    val appName: String,
+    val icon: android.graphics.drawable.Drawable
+)
+
+@Composable
+fun AppSelectorItem(
+    app: AppInfo,
+    isSelected: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onToggle() }
+            .background(if (isSelected) PrimaryBlue.copy(alpha = 0.2f) else DarkBackground)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                painter = androidx.compose.ui.graphics.painter.Painter.drawable(app.icon),
+                contentDescription = app.appName,
+                tint = WhiteText,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = app.appName,
+                color = WhiteText,
+                fontSize = 14.sp
+            )
+        }
+        if (isSelected) {
+            Icon(Icons.Default.Check, contentDescription = "Selected", tint = GreenSuccess)
         }
     }
 }

@@ -1,38 +1,107 @@
 package com.v2ray.app.repository
 
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
 import com.v2ray.app.data.Profile
-import com.v2ray.app.data.AppDatabase
-import com.v2ray.app.data.ProfileDao
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
 
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "profiles")
+
 @Singleton
 class ProfileRepository @Inject constructor(
-    private val profileDao: ProfileDao
+    private val context: Context
 ) {
-    fun getAllProfilesFlow(): Flow<List<Profile>> = profileDao.getAllProfilesFlow()
+    private val json = Json { 
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    }
+    private val PROFILES_KEY = stringPreferencesKey("profiles")
+    private val SELECTED_ID_KEY = stringPreferencesKey("selected_profile_id")
 
-    suspend fun getAllProfiles(): List<Profile> = profileDao.getAllProfiles()
-
-    suspend fun getProfile(id: String): Profile? = profileDao.getProfile(id)
-
-    suspend fun insertProfile(profile: Profile) = profileDao.insertProfile(profile)
-
-    suspend fun updateProfile(profile: Profile) = profileDao.updateProfile(profile)
-
-    suspend fun deleteProfile(profile: Profile) = profileDao.deleteProfile(profile)
-
-    suspend fun setSelected(id: String) {
-        profileDao.clearSelected()
-        profileDao.setSelected(id)
+    fun getAllProfiles(): Flow<List<Profile>> {
+        return context.dataStore.data.map { preferences ->
+            val jsonStr = preferences[PROFILES_KEY] ?: "[]"
+            json.decodeFromString(jsonStr)
+        }
     }
 
-    suspend fun updateCustomSni(id: String, sni: String) {
-        profileDao.updateCustomSni(id, sni)
+    suspend fun insertProfile(profile: Profile) {
+        val current = getAllProfiles().firstOrNull() ?: emptyList()
+        val updated = if (current.any { it.id == profile.id }) {
+            current.map { if (it.id == profile.id) profile else it }
+        } else {
+            current + profile
+        }
+        context.dataStore.edit { preferences ->
+            preferences[PROFILES_KEY] = json.encodeToString(updated)
+        }
     }
 
-    suspend fun updateFrontingDomain(id: String, domain: String) {
-        profileDao.updateFrontingDomain(id, domain)
+    suspend fun deleteProfile(profile: Profile) {
+        val current = getAllProfiles().firstOrNull() ?: emptyList()
+        val updated = current.filter { it.id != profile.id }
+        context.dataStore.edit { preferences ->
+            preferences[PROFILES_KEY] = json.encodeToString(updated)
+        }
+    }
+
+    suspend fun setSelected(profileId: String) {
+        val current = getAllProfiles().firstOrNull() ?: emptyList()
+        val updated = current.map { 
+            it.copy(selected = it.id == profileId)
+        }
+        context.dataStore.edit { preferences ->
+            preferences[PROFILES_KEY] = json.encodeToString(updated)
+            preferences[SELECTED_ID_KEY] = profileId
+        }
+    }
+
+    suspend fun updateCustomSni(profileId: String, sni: String) {
+        val current = getAllProfiles().firstOrNull() ?: emptyList()
+        val updated = current.map { 
+            if (it.id == profileId) it.copy(customSni = sni) else it
+        }
+        context.dataStore.edit { preferences ->
+            preferences[PROFILES_KEY] = json.encodeToString(updated)
+        }
+    }
+
+    suspend fun updateFrontingDomain(profileId: String, frontingDomain: String) {
+        val current = getAllProfiles().firstOrNull() ?: emptyList()
+        val updated = current.map { 
+            if (it.id == profileId) it.copy(frontingDomain = frontingDomain) else it
+        }
+        context.dataStore.edit { preferences ->
+            preferences[PROFILES_KEY] = json.encodeToString(updated)
+        }
+    }
+
+    suspend fun updateRealitySettings(
+        profileId: String,
+        publicKey: String,
+        shortId: String,
+        serverName: String,
+        fingerprint: String
+    ) {
+        val current = getAllProfiles().firstOrNull() ?: emptyList()
+        val updated = current.map { 
+            if (it.id == profileId) it.copy(
+                realityPublicKey = publicKey,
+                realityShortId = shortId,
+                realityServerName = serverName,
+                realityFingerprint = fingerprint
+            ) else it
+        }
+        context.dataStore.edit { preferences ->
+            preferences[PROFILES_KEY] = json.encodeToString(updated)
+        }
     }
 }

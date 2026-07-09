@@ -16,4 +16,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "Stkvpn"
-include(":app")
+include(":app", ":core")

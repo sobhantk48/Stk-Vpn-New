@@ -4,7 +4,6 @@ import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -16,14 +15,30 @@ import com.v2ray.app.ui.about.AboutScreen
 import com.v2ray.app.ui.admin.AdminLoginScreen
 import com.v2ray.app.ui.admin.AdminScreen
 import com.v2ray.app.ui.dashboard.DashboardScreen
+import com.v2ray.app.ui.groups.GroupsScreen
 import com.v2ray.app.ui.location.LocationListScreen
 import com.v2ray.app.ui.onboarding.OnboardingScreen
 import com.v2ray.app.ui.settings.LogViewerScreen
 import com.v2ray.app.ui.settings.SettingsScreen
 import com.v2ray.app.ui.splash.SplashScreen
+import com.v2ray.app.ui.subscription.SubscriptionScreen
 import com.v2ray.app.utils.OnboardingManager
 import com.v2ray.app.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
+
+object AppRoutes {
+    const val ONBOARDING = "onboarding"
+    const val SPLASH = "splash"
+    const val HOME = "home"
+    const val ADMIN_LOGIN = "admin_login"
+    const val ADMIN = "admin"
+    const val SETTINGS = "settings"
+    const val LOCATION_LIST = "location_list"
+    const val ABOUT = "about"
+    const val LOGS = "logs"
+    const val SUBSCRIPTIONS = "subscriptions"
+    const val GROUPS = "groups"
+}
 
 @Composable
 fun AppNavigation() {
@@ -138,6 +153,18 @@ fun AppNavigation() {
 
         composable(AppRoutes.LOGS) {
             LogViewerScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(AppRoutes.SUBSCRIPTIONS) {
+            SubscriptionScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(AppRoutes.GROUPS) {
+            GroupsScreen(
                 onBack = { navController.popBackStack() }
             )
         }

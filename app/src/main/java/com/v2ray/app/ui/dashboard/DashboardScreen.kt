@@ -34,247 +34,264 @@ fun DashboardScreen(
     val selected by vm.selectedProfile.collectAsStateWithLifecycle()
     val isConnected by vm.isConnected.collectAsStateWithLifecycle()
     val pings by vm.pings.collectAsStateWithLifecycle()
+    val errorMessage by vm.errorMessage.collectAsStateWithLifecycle()
 
     var showServerList by remember { mutableStateOf(false) }
     var sniTunnelEnabled by remember { mutableStateOf(false) }
     var frontingEnabled by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(DarkBackground)
-            .padding(16.dp)
-    ) {
-        // کارت اطلاعات اتصال
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = DarkSurface
-            ),
-            shape = MaterialTheme.shapes.medium
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = if (isConnected) "🟢 Connected" else "🔴 Disconnected",
-                        color = if (isConnected) GreenSuccess else RedError,
-                        fontSize = 18.sp
-                    )
-                    if (isConnected) {
-                        Text(
-                            text = "00:15:42",
-                            color = WhiteText.copy(0.7f),
-                            fontSize = 14.sp
-                        )
-                    }
-                }
+    val scaffoldState = rememberScaffoldState()
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (isConnected && selected != null) {
-                    Text(
-                        text = "${selected!!.name} - ${selected!!.type} - tcp",
-                        color = WhiteText,
-                        fontSize = 14.sp
-                    )
-                    if (selected!!.customSni.isNotBlank()) {
-                        Text(
-                            text = "🔒 SNI: ${selected!!.customSni}",
-                            color = CyanAccent,
-                            fontSize = 12.sp
-                        )
-                    }
-                    if (frontingEnabled) {
-                        Text(
-                            text = "🌐 Domain Fronting: ON",
-                            color = GreenAccent,
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Download", color = WhiteText.copy(0.5f), fontSize = 12.sp)
-                        Text("125.6 MB", color = CyanAccent, fontSize = 16.sp)
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Upload", color = WhiteText.copy(0.5f), fontSize = 12.sp)
-                        Text("512 MB", color = CyanAccent, fontSize = 16.sp)
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Ping", color = WhiteText.copy(0.5f), fontSize = 12.sp)
-                        val ping = selected?.let { pings[it.id]?.latency } ?: -1
-                        Text(
-                            text = if (ping > 0) "${ping} ms" else "--",
-                            color = if (ping > 0 && ping < 100) GreenSuccess else CyanAccent,
-                            fontSize = 16.sp
-                        )
-                    }
-                }
-            }
+    // نمایش خطاها با Snackbar
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let { msg ->
+            scaffoldState.snackbarHostState.showSnackbar(
+                message = msg,
+                actionLabel = "Dismiss",
+                duration = SnackbarDuration.Long
+            )
+            vm.clearError()
         }
+    }
 
-        // دکمه‌های Quick Actions
-        Row(
+    Scaffold(
+        scaffoldState = scaffoldState,
+        modifier = Modifier.fillMaxSize(),
+        containerColor = DarkBackground
+    ) { paddingValues ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
+                .fillMaxSize()
+                .background(DarkBackground)
+                .padding(paddingValues)
+                .padding(16.dp)
         ) {
-            QuickActionButton(
-                icon = Icons.Default.List,
-                label = "Servers",
-                onClick = { showServerList = !showServerList }
-            )
-            QuickActionButton(
-                icon = Icons.Default.Speed,
-                label = "Speed Test",
-                onClick = { /* TODO: Run speed test */ }
-            )
-            QuickActionButton(
-                icon = Icons.Default.Security,
-                label = "Tor",
-                onClick = { /* TODO: Enable Tor */ }
-            )
-            QuickActionButton(
-                icon = Icons.Default.Tune,
-                label = if (sniTunnelEnabled) "SNI ✓" else "SNI",
-                onClick = {
-                    sniTunnelEnabled = !sniTunnelEnabled
-                    if (sniTunnelEnabled) {
-                        selected?.let { profile ->
-                            vm.updateCustomSni(profile.id, "www.google.com")
-                        }
-                    } else {
-                        selected?.let { profile ->
-                            vm.updateCustomSni(profile.id, "")
-                        }
-                    }
-                }
-            )
-            QuickActionButton(
-                icon = Icons.Default.Verified,
-                label = if (frontingEnabled) "Front ✓" else "Front",
-                onClick = {
-                    frontingEnabled = !frontingEnabled
-                    if (frontingEnabled) {
-                        vm.startFronting()
-                    } else {
-                        vm.stopFronting()
-                    }
-                }
-            )
-        }
-
-        // دکمه اتصال/قطع و Admin
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = { vm.toggleConnection() },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isConnected) RedError else GreenSuccess
-                )
-            ) {
-                Text(
-                    text = if (isConnected) "🔴 Disconnect" else "🟢 Connect",
-                    color = WhiteText,
-                    fontSize = 16.sp
-                )
-            }
-
-            Button(
-                onClick = onAdminClick,
-                modifier = Modifier.weight(0.5f),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-            ) {
-                Icon(Icons.Default.AdminPanelSettings, contentDescription = null)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Admin", color = WhiteText, fontSize = 14.sp)
-            }
-        }
-
-        // لیست سرورها (قابل نمایش/مخفی‌سازی)
-        if (showServerList) {
+            // کارت اطلاعات اتصال
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(200.dp)
-                    .padding(bottom = 8.dp),
-                colors = CardDefaults.cardColors(containerColor = DarkSurface)
+                    .padding(bottom = 16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = DarkSurface
+                ),
+                shape = MaterialTheme.shapes.medium
             ) {
-                if (profiles.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No profiles. Add via import.", color = WhiteText.copy(0.5f))
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(8.dp)
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        items(profiles) { profile ->
-                            ServerListItem(
-                                profile = profile,
-                                isSelected = selected?.id == profile.id,
-                                onClick = { vm.selectProfile(profile) }
+                        Text(
+                            text = if (isConnected) "🟢 Connected" else "🔴 Disconnected",
+                            color = if (isConnected) GreenSuccess else RedError,
+                            fontSize = 18.sp
+                        )
+                        if (isConnected) {
+                            Text(
+                                text = "00:15:42",
+                                color = WhiteText.copy(0.7f),
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (isConnected && selected != null) {
+                        Text(
+                            text = "${selected!!.name} - ${selected!!.type} - tcp",
+                            color = WhiteText,
+                            fontSize = 14.sp
+                        )
+                        if (selected!!.customSni.isNotBlank()) {
+                            Text(
+                                text = "🔒 SNI: ${selected!!.customSni}",
+                                color = CyanAccent,
+                                fontSize = 12.sp
+                            )
+                        }
+                        if (frontingEnabled) {
+                            Text(
+                                text = "🌐 Domain Fronting: ON",
+                                color = GreenAccent,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Download", color = WhiteText.copy(0.5f), fontSize = 12.sp)
+                            Text("125.6 MB", color = CyanAccent, fontSize = 16.sp)
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Upload", color = WhiteText.copy(0.5f), fontSize = 12.sp)
+                            Text("512 MB", color = CyanAccent, fontSize = 16.sp)
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Ping", color = WhiteText.copy(0.5f), fontSize = 12.sp)
+                            val ping = selected?.let { pings[it.id]?.latency } ?: -1
+                            Text(
+                                text = if (ping > 0) "${ping} ms" else "--",
+                                color = if (ping > 0 && ping < 100) GreenSuccess else CyanAccent,
+                                fontSize = 16.sp
                             )
                         }
                     }
                 }
             }
-        }
 
-        // Recent Activity
-        Text(
-            text = "📋 Recent Activity",
-            color = CyanAccent,
-            fontSize = 16.sp,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+            // دکمه‌های Quick Actions
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                QuickActionButton(
+                    icon = Icons.Default.List,
+                    label = "Servers",
+                    onClick = { showServerList = !showServerList }
+                )
+                QuickActionButton(
+                    icon = Icons.Default.Speed,
+                    label = "Speed Test",
+                    onClick = { /* TODO: Run speed test */ }
+                )
+                QuickActionButton(
+                    icon = Icons.Default.Security,
+                    label = "Tor",
+                    onClick = { /* TODO: Enable Tor */ }
+                )
+                QuickActionButton(
+                    icon = Icons.Default.Tune,
+                    label = if (sniTunnelEnabled) "SNI ✓" else "SNI",
+                    onClick = {
+                        sniTunnelEnabled = !sniTunnelEnabled
+                        vm.setSniTunnelEnabled(sniTunnelEnabled)
+                    }
+                )
+                QuickActionButton(
+                    icon = Icons.Default.Verified,
+                    label = if (frontingEnabled) "Front ✓" else "Front",
+                    onClick = {
+                        frontingEnabled = !frontingEnabled
+                        if (frontingEnabled) {
+                            vm.startFronting()
+                        } else {
+                            vm.stopFronting()
+                        }
+                    }
+                )
+            }
 
-        // دکمه‌های پایین
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 16.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            BottomActionButton(
-                icon = Icons.Default.Settings,
-                label = "Settings",
-                onClick = onNavigateToSettings
+            // دکمه اتصال/قطع و Admin
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { vm.toggleConnection() },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isConnected) RedError else GreenSuccess
+                    )
+                ) {
+                    Text(
+                        text = if (isConnected) "🔴 Disconnect" else "🟢 Connect",
+                        color = WhiteText,
+                        fontSize = 16.sp
+                    )
+                }
+
+                Button(
+                    onClick = onAdminClick,
+                    modifier = Modifier.weight(0.5f),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                ) {
+                    Icon(Icons.Default.AdminPanelSettings, contentDescription = null)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Admin", color = WhiteText, fontSize = 14.sp)
+                }
+            }
+
+            // لیست سرورها (قابل نمایش/مخفی‌سازی)
+            if (showServerList) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .padding(bottom = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = DarkSurface)
+                ) {
+                    if (profiles.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("No profiles. Add via import.", color = WhiteText.copy(0.5f))
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(8.dp)
+                        ) {
+                            items(
+                                items = profiles,
+                                key = { it.id }  // کلید منحصربه‌فرد برای هر آیتم
+                            ) { profile ->
+                                ServerListItem(
+                                    profile = profile,
+                                    isSelected = selected?.id == profile.id,
+                                    onClick = { vm.selectProfile(profile) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Recent Activity
+            Text(
+                text = "📋 Recent Activity",
+                color = CyanAccent,
+                fontSize = 16.sp,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
-            BottomActionButton(
-                icon = Icons.Default.LocationOn,
-                label = "Locations",
-                onClick = onNavigateToLocations
-            )
-            BottomActionButton(
-                icon = Icons.Default.Info,
-                label = "About",
-                onClick = onNavigateToAbout
-            )
-            BottomActionButton(
-                icon = Icons.Default.History,
-                label = "Logs",
-                onClick = onNavigateToLogs
-            )
+
+            // دکمه‌های پایین
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                BottomActionButton(
+                    icon = Icons.Default.Settings,
+                    label = "Settings",
+                    onClick = onNavigateToSettings
+                )
+                BottomActionButton(
+                    icon = Icons.Default.LocationOn,
+                    label = "Locations",
+                    onClick = onNavigateToLocations
+                )
+                BottomActionButton(
+                    icon = Icons.Default.Info,
+                    label = "About",
+                    onClick = onNavigateToAbout
+                )
+                BottomActionButton(
+                    icon = Icons.Default.History,
+                    label = "Logs",
+                    onClick = onNavigateToLogs
+                )
+            }
         }
     }
 }

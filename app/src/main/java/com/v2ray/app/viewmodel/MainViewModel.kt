@@ -1,25 +1,49 @@
 package com.v2ray.app.viewmodel
 
 import android.app.Application
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.net.VpnService
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.v2ray.app.MainActivity
+import com.v2ray.app.bg.V2RayService
 import com.v2ray.app.data.Profile
 import com.v2ray.app.repository.ProfileRepository
-import com.v2ray.app.bg.V2RayService
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
 
+// ================== Data Class for Full Backup ==================
+@Serializable
+data class FullBackupData(
+    val version: Int = 1,
+    val profiles: List<Profile>,
+    val selectedProfileId: String?,
+    val frontingEnabled: Boolean,
+    val frontingDomain: String?,
+    val sniTunnelEnabled: Boolean,
+    val customSni: String?,
+    val splitTunnelingEnabled: Boolean,
+    val splitMode: String, // "INCLUDE" or "EXCLUDE"
+    val splitApps: List<String>
+)
+
+// ================== Sealed Class for Backup Status ==================
 sealed class BackupStatus {
     data class Success(val message: String) : BackupStatus()
     data class Error(val message: String) : BackupStatus()
@@ -50,13 +74,56 @@ class MainViewModel @Inject constructor(
     private val _frontingEnabled = MutableStateFlow(false)
     val frontingEnabled: StateFlow<Boolean> = _frontingEnabled.asStateFlow()
 
+    private val _sniTunnelEnabled = MutableStateFlow(false)
+    val sniTunnelEnabled: StateFlow<Boolean> = _sniTunnelEnabled.asStateFlow()
+
     private val _backupStatus = MutableStateFlow<BackupStatus>(BackupStatus.Idle)
     val backupStatus: StateFlow<BackupStatus> = _backupStatus.asStateFlow()
+
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
     private var activity: MainActivity? = null
     private var currentProfile: Profile? = null
 
+    private val connectionMutex = Mutex()
+    private var isConnecting = false
+
     data class PingResult(val latency: Int, val timestamp: Long)
+
+    // ================== Status Broadcast Receiver ==================
+
+    private val statusReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action != V2RayService.ACTION_STATUS_UPDATE) return
+            val isConnected = intent.getBooleanExtra(V2RayService.EXTRA_IS_CONNECTED, false)
+            val error = intent.getStringExtra(V2RayService.EXTRA_ERROR_MESSAGE)
+            _isConnected.value = isConnected
+            if (!isConnected && error != null) {
+                _errorMessage.value = error
+            }
+            if (!isConnected) {
+                currentProfile = null
+            }
+        }
+    }
+
+    fun registerReceiver(context: Context) {
+        val filter = IntentFilter(V2RayService.ACTION_STATUS_UPDATE)
+        context.registerReceiver(statusReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+    }
+
+    fun unregisterReceiver(context: Context) {
+        try {
+            context.unregisterReceiver(statusReceiver)
+        } catch (_: Exception) { /* already unregistered */ }
+    }
+
+    fun clearError() {
+        _errorMessage.value = null
+    }
+
+    // ================== Profile Management ==================
 
     fun setActivity(activity: MainActivity) {
         this.activity = activity
@@ -99,13 +166,28 @@ class MainViewModel @Inject constructor(
         profile?.let { selectProfile(it) }
     }
 
+    // ================== Connection Management ==================
+
     fun toggleConnection() {
-        val activity = activity ?: return
-        val profile = _selectedProfile.value ?: return
-        if (_isConnected.value) {
-            disconnect()
-        } else {
-            connect(profile, activity)
+        if (isConnecting) return
+
+        viewModelScope.launch {
+            connectionMutex.withLock {
+                if (isConnecting) return@withLock
+                isConnecting = true
+                try {
+                    val activity = activity ?: return@withLock
+                    val profile = _selectedProfile.value ?: return@withLock
+
+                    if (_isConnected.value) {
+                        disconnect()
+                    } else {
+                        connect(profile, activity)
+                    }
+                } finally {
+                    isConnecting = false
+                }
+            }
         }
     }
 
@@ -117,13 +199,11 @@ class MainViewModel @Inject constructor(
         }
         currentProfile = profile
         activity.startVpnService(profile)
-        _isConnected.value = true
     }
 
     private fun disconnect() {
         val activity = activity ?: return
         activity.stopVpnService()
-        _isConnected.value = false
         currentProfile = null
     }
 
@@ -131,8 +211,9 @@ class MainViewModel @Inject constructor(
         val profile = _selectedProfile.value ?: return
         currentProfile = profile
         activity?.startVpnService(profile)
-        _isConnected.value = true
     }
+
+    // ================== SNI & Fronting ==================
 
     fun updateCustomSni(profileId: String, sni: String) {
         viewModelScope.launch {
@@ -141,7 +222,14 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // Domain Fronting
+    fun setSniTunnelEnabled(enabled: Boolean) {
+        _sniTunnelEnabled.value = enabled
+        val profile = _selectedProfile.value
+        if (profile != null) {
+            updateCustomSni(profile.id, if (enabled) "www.google.com" else "")
+        }
+    }
+
     fun startFronting() {
         val profile = _selectedProfile.value ?: return
         if (_frontingEnabled.value) return
@@ -181,7 +269,6 @@ class MainViewModel @Inject constructor(
         }
         currentProfile = profile
         activity.startVpnService(currentProfile!!)
-        _isConnected.value = true
     }
 
     fun toggleFronting() {
@@ -195,7 +282,8 @@ class MainViewModel @Inject constructor(
     fun isFrontingEnabled(): Boolean = _frontingEnabled.value
     fun getCurrentProfile(): Profile? = currentProfile
 
-    // Backup & Restore
+    // ================== Full Backup & Restore ==================
+
     fun getBackupFiles(): List<File> {
         val dir = getApplication<Application>().filesDir
         return dir.listFiles { file ->
@@ -203,15 +291,42 @@ class MainViewModel @Inject constructor(
         }?.sortedByDescending { it.lastModified() } ?: emptyList()
     }
 
-    fun backupProfiles() {
+    fun backupFull() {
         viewModelScope.launch {
             try {
                 val profiles = profileRepository.getAllProfiles()
-                val json = Json.encodeToString(profiles)
+                val selectedId = _selectedId.value
+                val frontingEnabled = _frontingEnabled.value
+                val frontingDomain = selectedProfile.value?.frontingDomain ?: ""
+                val sniTunnelEnabled = _sniTunnelEnabled.value
+                val customSni = selectedProfile.value?.customSni ?: ""
+                val splitTunnelingEnabled = V2RayService.splitTunnelingEnabled
+                val splitMode = V2RayService.splitMode.name
+                val splitApps = V2RayService.splitApps.toList()
+
+                val backupData = FullBackupData(
+                    version = 1,
+                    profiles = profiles,
+                    selectedProfileId = selectedId,
+                    frontingEnabled = frontingEnabled,
+                    frontingDomain = frontingDomain,
+                    sniTunnelEnabled = sniTunnelEnabled,
+                    customSni = customSni,
+                    splitTunnelingEnabled = splitTunnelingEnabled,
+                    splitMode = splitMode,
+                    splitApps = splitApps
+                )
+
+                val json = Json { 
+                    prettyPrint = true
+                    encodeDefaults = true
+                }.encodeToString(backupData)
+
                 val dateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
                 val fileName = "backup_${dateFormat.format(Date())}.json"
                 val file = File(getApplication<Application>().filesDir, fileName)
                 file.writeText(json)
+
                 _backupStatus.value = BackupStatus.Success("Backup saved: $fileName")
             } catch (e: Exception) {
                 _backupStatus.value = BackupStatus.Error("Backup failed: ${e.message}")
@@ -219,16 +334,45 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun restoreProfiles(file: File) {
+    fun restoreFull(file: File) {
         viewModelScope.launch {
             try {
                 val json = file.readText()
-                val profiles: List<Profile> = Json.decodeFromString(json)
-                for (profile in profiles) {
+                val backupData: FullBackupData = Json.decodeFromString(json)
+
+                // ۱. بازیابی پروفایل‌ها
+                for (profile in backupData.profiles) {
                     profileRepository.insertProfile(profile)
                 }
-                _backupStatus.value = BackupStatus.Success("Restored ${profiles.size} profiles")
                 loadProfiles()
+
+                // ۲. بازیابی تنظیمات انتخاب‌شده
+                backupData.selectedProfileId?.let { id ->
+                    val profile = _profiles.value.find { it.id == id }
+                    profile?.let { selectProfile(it) }
+                }
+
+                // ۳. بازیابی Fronting
+                if (backupData.frontingEnabled) {
+                    _frontingEnabled.value = true
+                } else {
+                    _frontingEnabled.value = false
+                }
+
+                // ۴. بازیابی SNI Tunnel
+                _sniTunnelEnabled.value = backupData.sniTunnelEnabled
+
+                // ۵. بازیابی Split Tunneling
+                V2RayService.splitTunnelingEnabled = backupData.splitTunnelingEnabled
+                V2RayService.splitMode = try {
+                    com.v2ray.app.model.SplitMode.valueOf(backupData.splitMode)
+                } catch (_: Exception) {
+                    com.v2ray.app.model.SplitMode.INCLUDE
+                }
+                V2RayService.splitApps.clear()
+                V2RayService.splitApps.addAll(backupData.splitApps)
+
+                _backupStatus.value = BackupStatus.Success("Restored ${backupData.profiles.size} profiles with all settings")
             } catch (e: Exception) {
                 _backupStatus.value = BackupStatus.Error("Restore failed: ${e.message}")
             }

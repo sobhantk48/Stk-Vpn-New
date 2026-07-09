@@ -1,38 +1,21 @@
-# Keep model classes
--keep class com.v2ray.app.data.** { *; }
+# حفظ کلاس‌های libbox
+-keep class io.nekohasekai.libbox.** { *; }
+-keep interface io.nekohasekai.libbox.** { *; }
 
-# Keep ViewModel
--keep class com.v2ray.app.viewmodel.** { *; }
-
-# Keep Hilt-generated classes
--keep class dagger.hilt.** { *; }
--keep class javax.inject.** { *; }
-
-# Keep serialization
+# حفظ کلاس‌های سریال‌سازی
 -keepattributes *Annotation*, InnerClasses
 -dontnote kotlinx.serialization.**
 -keepclassmembers class kotlinx.serialization.** { *; }
-
-# Keep libv2ray (Xray-core)
--keep class libv2ray.** { *; }
--keep class go.** { *; }
-
-# Keep Room
--keep class androidx.room.** { *; }
--keep @androidx.room.Entity class *
-
-# Keep Compose
--keep class androidx.compose.** { *; }
-
-# Keep DataStore
--keep class androidx.datastore.** { *; }
-
-# Keep Kotlin reflection (for serialization)
--keep class kotlin.reflect.** { *; }
 -keep class kotlinx.serialization.** { *; }
 
-# Remove debug logs (optional)
+# حفظ کلاس‌های داده‌ی Profile و FullBackupData
+-keep class com.v2ray.app.data.Profile { *; }
+-keep class com.v2ray.app.viewmodel.FullBackupData { *; }
+
+# حذف لاگ‌ها در نسخه‌ی Release
 -assumenosideeffects class android.util.Log {
     public static *** d(...);
     public static *** v(...);
+    public static *** i(...);
 }
+-keep class com.v2ray.app.utils.Logger { *; }

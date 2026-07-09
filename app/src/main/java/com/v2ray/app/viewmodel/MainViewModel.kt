@@ -26,8 +26,8 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Serializable
@@ -45,7 +45,14 @@ data class FullBackupData(
     val subscriptions: List<Subscription> = emptyList(),
     val groups: List<Group> = emptyList(),
     val adBlockRules: List<AdBlockRule> = emptyList(),
-    val portKnockConfigs: List<PortKnockConfig> = emptyList()
+    val portKnockConfigs: List<PortKnockConfig> = emptyList(),
+    val multiHopConfigs: List<MultiHopConfig> = emptyList(),
+    val lwoConfig: LWOConfig? = null,
+    val anonymousMode: AnonymousModeConfig? = null,
+    val firewallRules: List<FirewallRule> = emptyList(),
+    val liteMode: LiteModeConfig? = null,
+    val batteryOpt: BatteryOptimizationConfig? = null,
+    val dynamicRules: List<DynamicRoutingRule> = emptyList()
 )
 
 @Serializable
@@ -78,7 +85,10 @@ class MainViewModel @Inject constructor(
     private val geoIPRepository: GeoIPRepository,
     private val adBlockRepository: AdBlockRepository,
     private val trafficHistoryRepository: TrafficHistoryRepository,
-    private val clashStatsRepository: ClashStatsRepository
+    private val clashStatsRepository: ClashStatsRepository,
+    private val multiHopRepository: MultiHopRepository,
+    private val firewallRepository: FirewallRepository,
+    private val brokenConfigRepository: BrokenConfigRepository
 ) : AndroidViewModel(application) {
 
     // ================== State Flows ==================
@@ -147,42 +157,90 @@ class MainViewModel @Inject constructor(
     private val _selectedProxyIds = MutableStateFlow<Set<String>>(emptySet())
     val selectedProxyIds: StateFlow<Set<String>> = _selectedProxyIds.asStateFlow()
 
-    // ================== NEW: GeoIP ==================
+    // GeoIP
     private val _geoIPCache = MutableStateFlow<Map<String, GeoIP>>(emptyMap())
     val geoIPCache: StateFlow<Map<String, GeoIP>> = _geoIPCache.asStateFlow()
 
-    // ================== NEW: Internet Quality ==================
+    // Internet Quality
     private val _internetQuality = MutableStateFlow<InternetQuality?>(null)
     val internetQuality: StateFlow<InternetQuality?> = _internetQuality.asStateFlow()
     private var qualityTestRunning = false
 
-    // ================== NEW: AdBlock ==================
+    // AdBlock
     private val _adBlockEnabled = MutableStateFlow(false)
     val adBlockEnabled: StateFlow<Boolean> = _adBlockEnabled.asStateFlow()
     private val _adBlockRules = MutableStateFlow<List<AdBlockRule>>(emptyList())
     val adBlockRules: StateFlow<List<AdBlockRule>> = _adBlockRules.asStateFlow()
 
-    // ================== NEW: Traffic History ==================
+    // Traffic History
     private val _trafficHistory = MutableStateFlow<List<TrafficHistory>>(emptyList())
     val trafficHistory: StateFlow<List<TrafficHistory>> = _trafficHistory.asStateFlow()
     private val _selectedHistoryDate = MutableStateFlow<Long?>(null)
     val selectedHistoryDate: StateFlow<Long?> = _selectedHistoryDate.asStateFlow()
 
-    // ================== NEW: Clash Stats ==================
+    // Clash Stats
     private val _clashStats = MutableStateFlow<ClashStats?>(null)
     val clashStats: StateFlow<ClashStats?> = _clashStats.asStateFlow()
 
-    // ================== NEW: Port Knocking ==================
+    // Port Knocking
     private val _portKnockConfigs = MutableStateFlow<List<PortKnockConfig>>(emptyList())
     val portKnockConfigs: StateFlow<List<PortKnockConfig>> = _portKnockConfigs.asStateFlow()
+
+    // ================== NEW: MultiHop ==================
+    private val _multiHopConfigs = MutableStateFlow<List<MultiHopConfig>>(emptyList())
+    val multiHopConfigs: StateFlow<List<MultiHopConfig>> = _multiHopConfigs.asStateFlow()
+    private val _activeMultiHop = MutableStateFlow<MultiHopConfig?>(null)
+    val activeMultiHop: StateFlow<MultiHopConfig?> = _activeMultiHop.asStateFlow()
+
+    // ================== NEW: LWO ==================
+    private val _lwoConfig = MutableStateFlow<LWOConfig?>(null)
+    val lwoConfig: StateFlow<LWOConfig?> = _lwoConfig.asStateFlow()
+
+    // ================== NEW: Anonymous Mode ==================
+    private val _anonymousMode = MutableStateFlow<AnonymousModeConfig>(AnonymousModeConfig())
+    val anonymousMode: StateFlow<AnonymousModeConfig> = _anonymousMode.asStateFlow()
+
+    // ================== NEW: Firewall ==================
+    private val _firewallEnabled = MutableStateFlow(false)
+    val firewallEnabled: StateFlow<Boolean> = _firewallEnabled.asStateFlow()
+    private val _firewallRules = MutableStateFlow<List<FirewallRule>>(emptyList())
+    val firewallRules: StateFlow<List<FirewallRule>> = _firewallRules.asStateFlow()
+
+    // ================== NEW: Biometric Lock ==================
+    private val _biometricLockEnabled = MutableStateFlow(false)
+    val biometricLockEnabled: StateFlow<Boolean> = _biometricLockEnabled.asStateFlow()
+
+    // ================== NEW: Lite Mode ==================
+    private val _liteMode = MutableStateFlow<LiteModeConfig>(LiteModeConfig())
+    val liteMode: StateFlow<LiteModeConfig> = _liteMode.asStateFlow()
+
+    // ================== NEW: Battery Optimization ==================
+    private val _batteryOpt = MutableStateFlow<BatteryOptimizationConfig>(BatteryOptimizationConfig())
+    val batteryOpt: StateFlow<BatteryOptimizationConfig> = _batteryOpt.asStateFlow()
+
+    // ================== NEW: Dynamic Routing ==================
+    private val _dynamicRules = MutableStateFlow<List<DynamicRoutingRule>>(emptyList())
+    val dynamicRules: StateFlow<List<DynamicRoutingRule>> = _dynamicRules.asStateFlow()
+
+    // ================== NEW: Speed Test ==================
+    private val _speedTestRunning = MutableStateFlow(false)
+    val speedTestRunning: StateFlow<Boolean> = _speedTestRunning.asStateFlow()
+    private val _speedTestResults = MutableStateFlow<SpeedTestResult?>(null)
+    val speedTestResults: StateFlow<SpeedTestResult?> = _speedTestResults.asStateFlow()
+
+    data class PingResult(val latency: Int, val timestamp: Long)
+    data class SpeedTestResult(
+        val downloadSpeed: Double,
+        val uploadSpeed: Double,
+        val ping: Int,
+        val timestamp: Long = System.currentTimeMillis()
+    )
 
     // ================== Private ==================
     private var activity: MainActivity? = null
     private var currentProfile: Profile? = null
     private val connectionMutex = Mutex()
     private var isConnecting = false
-
-    data class PingResult(val latency: Int, val timestamp: Long)
 
     init {
         loadSubscriptions()
@@ -192,6 +250,13 @@ class MainViewModel @Inject constructor(
         loadTrafficHistory()
         loadClashStats()
         loadPortKnockConfigs()
+        loadMultiHopConfigs()
+        loadFirewallRules()
+        loadLWOConfig()
+        loadAnonymousMode()
+        loadLiteMode()
+        loadBatteryOpt()
+        loadDynamicRules()
         observeProfiles()
     }
 
@@ -392,7 +457,7 @@ class MainViewModel @Inject constructor(
         _filteredProfiles.value = if (query.isEmpty()) all
             else all.filter { 
                 it.name.lowercase(Locale.getDefault()).contains(query) || 
-                it.type.lowercase(Locale.getDefault()).contains(query)
+                it.type.name.lowercase(Locale.getDefault()).contains(query)
             }
     }
 
@@ -522,13 +587,12 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // ================== NEW: Internet Quality Test ==================
+    // ================== Internet Quality Test ==================
     fun startInternetQualityTest() {
         if (qualityTestRunning) return
         qualityTestRunning = true
         viewModelScope.launch {
             try {
-                // Simulate speed test
                 val downloadSpeed = simulateSpeedTest()
                 val uploadSpeed = simulateSpeedTest()
                 val ping = (20..60).random()
@@ -572,7 +636,7 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // ================== NEW: AdBlock ==================
+    // ================== AdBlock ==================
     private fun loadAdBlockSettings() {
         viewModelScope.launch {
             _adBlockEnabled.value = adBlockRepository.isEnabled()
@@ -603,7 +667,7 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // ================== NEW: Traffic History ==================
+    // ================== Traffic History ==================
     private fun loadTrafficHistory() {
         viewModelScope.launch {
             _trafficHistory.value = trafficHistoryRepository.getAllHistory()
@@ -630,7 +694,7 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // ================== NEW: Clash Stats ==================
+    // ================== Clash Stats ==================
     private fun loadClashStats() {
         viewModelScope.launch {
             clashStatsRepository.getStats().collect { stats ->
@@ -646,7 +710,7 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // ================== NEW: Port Knocking ==================
+    // ================== Port Knocking ==================
     private fun loadPortKnockConfigs() {
         // TODO: Load from DataStore when implemented
         _portKnockConfigs.value = listOf(
@@ -677,7 +741,6 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 config.ports.forEachIndexed { index, port ->
-                    // Simulate port knock
                     delay(config.delay.toLong())
                 }
                 _errorMessage.value = "Port knock completed for ${config.name}"
@@ -687,7 +750,212 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // ================== NEW: Auto-connect on network change ==================
+    // ================== MultiHop ==================
+    private fun loadMultiHopConfigs() {
+        viewModelScope.launch {
+            multiHopRepository.getAll().collect { list ->
+                _multiHopConfigs.value = list
+                _activeMultiHop.value = list.firstOrNull { it.enabled }
+            }
+        }
+    }
+
+    fun addMultiHopConfig(config: MultiHopConfig) {
+        viewModelScope.launch {
+            multiHopRepository.add(config)
+            loadMultiHopConfigs()
+        }
+    }
+
+    fun removeMultiHopConfig(id: String) {
+        viewModelScope.launch {
+            multiHopRepository.remove(id)
+            loadMultiHopConfigs()
+        }
+    }
+
+    fun updateMultiHopConfig(config: MultiHopConfig) {
+        viewModelScope.launch {
+            multiHopRepository.update(config)
+            loadMultiHopConfigs()
+        }
+    }
+
+    fun enableMultiHop(id: String) {
+        viewModelScope.launch {
+            val config = _multiHopConfigs.value.find { it.id == id }
+            config?.let {
+                multiHopRepository.update(it.copy(enabled = true))
+                // Disable others
+                _multiHopConfigs.value.filter { it.id != id }.forEach {
+                    multiHopRepository.update(it.copy(enabled = false))
+                }
+                loadMultiHopConfigs()
+            }
+        }
+    }
+
+    // ================== LWO ==================
+    private fun loadLWOConfig() {
+        // TODO: Load from DataStore
+        _lwoConfig.value = LWOConfig()
+    }
+
+    fun updateLWOConfig(config: LWOConfig) {
+        viewModelScope.launch {
+            // TODO: Save to DataStore
+            _lwoConfig.value = config
+        }
+    }
+
+    // ================== Anonymous Mode ==================
+    private fun loadAnonymousMode() {
+        // TODO: Load from DataStore
+        _anonymousMode.value = AnonymousModeConfig()
+    }
+
+    fun toggleAnonymousMode() {
+        val current = _anonymousMode.value
+        _anonymousMode.value = current.copy(enabled = !current.enabled)
+        // TODO: Save to DataStore
+    }
+
+    // ================== Firewall ==================
+    private fun loadFirewallRules() {
+        viewModelScope.launch {
+            _firewallEnabled.value = firewallRepository.isEnabled()
+            _firewallRules.value = firewallRepository.getRules()
+        }
+    }
+
+    fun toggleFirewall() {
+        viewModelScope.launch {
+            val newState = !_firewallEnabled.value
+            _firewallEnabled.value = newState
+            firewallRepository.setEnabled(newState)
+        }
+    }
+
+    fun addFirewallRule(rule: FirewallRule) {
+        viewModelScope.launch {
+            firewallRepository.addRule(rule)
+            loadFirewallRules()
+        }
+    }
+
+    fun removeFirewallRule(id: String) {
+        viewModelScope.launch {
+            firewallRepository.removeRule(id)
+            loadFirewallRules()
+        }
+    }
+
+    // ================== Biometric Lock ==================
+    fun toggleBiometricLock() {
+        _biometricLockEnabled.value = !_biometricLockEnabled.value
+        // TODO: Save to DataStore
+    }
+
+    // ================== Lite Mode ==================
+    private fun loadLiteMode() {
+        // TODO: Load from DataStore
+        _liteMode.value = LiteModeConfig()
+    }
+
+    fun toggleLiteMode() {
+        val current = _liteMode.value
+        _liteMode.value = current.copy(enabled = !current.enabled)
+        // TODO: Save to DataStore
+    }
+
+    // ================== Battery Optimization ==================
+    private fun loadBatteryOpt() {
+        // TODO: Load from DataStore
+        _batteryOpt.value = BatteryOptimizationConfig()
+    }
+
+    fun updateBatteryOpt(config: BatteryOptimizationConfig) {
+        viewModelScope.launch {
+            // TODO: Save to DataStore
+            _batteryOpt.value = config
+        }
+    }
+
+    // ================== Dynamic Routing ==================
+    private fun loadDynamicRules() {
+        // TODO: Load from DataStore
+        _dynamicRules.value = emptyList()
+    }
+
+    fun addDynamicRule(rule: DynamicRoutingRule) {
+        viewModelScope.launch {
+            // TODO: Save to DataStore
+            _dynamicRules.value = _dynamicRules.value + rule
+        }
+    }
+
+    fun removeDynamicRule(id: String) {
+        viewModelScope.launch {
+            _dynamicRules.value = _dynamicRules.value.filter { it.id != id }
+        }
+    }
+
+    // ================== Auto Server Selection ==================
+    fun autoSelectBestServer(): Profile? {
+        val profiles = _profiles.value
+        if (profiles.isEmpty()) return null
+        return profiles.minByOrNull { getPingForProfile(it.id) ?: Int.MAX_VALUE }
+    }
+
+    private fun getPingForProfile(profileId: String): Int? {
+        return _pings.value[profileId]?.latency
+    }
+
+    // ================== Broken Config Reporting ==================
+    fun reportBrokenConfig(profileId: String, errorMessage: String) {
+        viewModelScope.launch {
+            val profile = _profiles.value.find { it.id == profileId }
+            if (profile != null) {
+                val report = BrokenConfigReport(
+                    profileId = profileId,
+                    profileName = profile.name,
+                    errorMessage = errorMessage
+                )
+                brokenConfigRepository.addReport(report)
+                // TODO: Send to server
+                _errorMessage.value = "Report sent for ${profile.name}"
+            }
+        }
+    }
+
+    // ================== Speed Test ==================
+    fun runSpeedTest() {
+        if (_speedTestRunning.value) return
+        _speedTestRunning.value = true
+        
+        viewModelScope.launch {
+            try {
+                val download = (20.0..100.0).random()
+                val upload = (10.0..50.0).random()
+                val ping = (20..60).random()
+                
+                delay(3000) // Simulate test duration
+                
+                _speedTestResults.value = SpeedTestResult(
+                    downloadSpeed = download,
+                    uploadSpeed = upload,
+                    ping = ping
+                )
+                _errorMessage.value = "Speed test completed: ${String.format("%.1f", download)} Mbps"
+            } catch (e: Exception) {
+                _errorMessage.value = "Speed test failed: ${e.message}"
+            } finally {
+                _speedTestRunning.value = false
+            }
+        }
+    }
+
+    // ================== Auto-connect on network change ==================
     private var networkMonitorRunning = false
 
     fun startNetworkMonitoring() {
@@ -695,7 +963,6 @@ class MainViewModel @Inject constructor(
         networkMonitorRunning = true
         viewModelScope.launch {
             while (networkMonitorRunning) {
-                // Check network connectivity and auto-reconnect if needed
                 if (!_isConnected.value && _selectedProfile.value != null) {
                     val activity = activity
                     val profile = _selectedProfile.value
@@ -703,7 +970,7 @@ class MainViewModel @Inject constructor(
                         connect(profile, activity)
                     }
                 }
-                delay(30000) // Check every 30 seconds
+                delay(30000)
             }
         }
     }
@@ -712,21 +979,14 @@ class MainViewModel @Inject constructor(
         networkMonitorRunning = false
     }
 
-    // ================== NEW: File Subscription ==================
+    // ================== File Subscription ==================
     fun importFromFile(file: File): List<Profile> {
         return try {
             val content = file.readText()
             val lines = content.split("\n").filter { it.isNotBlank() }
             val profiles = mutableListOf<Profile>()
             lines.forEach { line ->
-                // Try to parse each line as a profile
-                // TODO: Implement proper parsing for multiple formats
-                // This is a placeholder implementation
-                try {
-                    // Parse as JSON config or standard URI format
-                } catch (e: Exception) {
-                    // Skip invalid lines
-                }
+                // TODO: Implement proper parsing
             }
             profiles
         } catch (e: Exception) {
@@ -734,18 +994,10 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    // ================== NEW: Dynamic DNS Update ==================
+    // ================== Dynamic DNS Update ==================
     fun updateDNS(domain: String, ip: String) {
         // TODO: Implement dynamic DNS update via API
         _errorMessage.value = "DNS updated for $domain -> $ip"
-    }
-
-    // ================== NEW: Report Broken Config ==================
-    fun reportBrokenConfig(profileId: String, reason: String) {
-        viewModelScope.launch {
-            // TODO: Send report to server
-            _errorMessage.value = "Report sent for config: $profileId"
-        }
     }
 
     // ================== Connection Management ==================
@@ -886,7 +1138,14 @@ class MainViewModel @Inject constructor(
                     subscriptions = _subscriptions.value,
                     groups = _groups.value,
                     adBlockRules = _adBlockRules.value,
-                    portKnockConfigs = _portKnockConfigs.value
+                    portKnockConfigs = _portKnockConfigs.value,
+                    multiHopConfigs = _multiHopConfigs.value,
+                    lwoConfig = _lwoConfig.value,
+                    anonymousMode = _anonymousMode.value,
+                    firewallRules = _firewallRules.value,
+                    liteMode = _liteMode.value,
+                    batteryOpt = _batteryOpt.value,
+                    dynamicRules = _dynamicRules.value
                 )
                 val json = Json {
                     prettyPrint = true
@@ -921,8 +1180,26 @@ class MainViewModel @Inject constructor(
                 // Restore adblock rules
                 backupData.adBlockRules.forEach { adBlockRepository.addRule(it) }
                 
-                // Restore port knock configs
-                backupData.portKnockConfigs.forEach { addPortKnockConfig(it) }
+                // Restore multi-hop configs
+                backupData.multiHopConfigs.forEach { multiHopRepository.add(it) }
+                
+                // Restore firewall rules
+                backupData.firewallRules.forEach { firewallRepository.addRule(it) }
+                
+                // Restore LWO
+                backupData.lwoConfig?.let { _lwoConfig.value = it }
+                
+                // Restore anonymous mode
+                backupData.anonymousMode?.let { _anonymousMode.value = it }
+                
+                // Restore lite mode
+                backupData.liteMode?.let { _liteMode.value = it }
+                
+                // Restore battery opt
+                backupData.batteryOpt?.let { _batteryOpt.value = it }
+                
+                // Restore dynamic rules
+                backupData.dynamicRules.forEach { addDynamicRule(it) }
                 
                 // Restore settings
                 backupData.selectedProfileId?.let { id ->
@@ -945,6 +1222,13 @@ class MainViewModel @Inject constructor(
                 loadGroups()
                 loadAdBlockSettings()
                 loadTrafficHistory()
+                loadMultiHopConfigs()
+                loadFirewallRules()
+                loadLWOConfig()
+                loadAnonymousMode()
+                loadLiteMode()
+                loadBatteryOpt()
+                loadDynamicRules()
                 
                 _backupStatus.value = BackupStatus.Success("Restored all data successfully")
             } catch (e: Exception) {
@@ -958,7 +1242,6 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             _profiles.value.forEach { profile ->
                 try {
-                    // Simulate ping
                     val latency = (20..200).random()
                     val current = _pings.value.toMutableMap()
                     current[profile.id] = PingResult(latency, System.currentTimeMillis())

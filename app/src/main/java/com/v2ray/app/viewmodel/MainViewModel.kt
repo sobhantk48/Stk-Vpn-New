@@ -28,7 +28,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
 
-// ================== Data Class for Full Backup ==================
+// ================== Data Classes ==================
 @Serializable
 data class FullBackupData(
     val version: Int = 1,
@@ -39,11 +39,17 @@ data class FullBackupData(
     val sniTunnelEnabled: Boolean,
     val customSni: String?,
     val splitTunnelingEnabled: Boolean,
-    val splitMode: String, // "INCLUDE" or "EXCLUDE"
+    val splitMode: String,
     val splitApps: List<String>
 )
 
-// ================== Sealed Class for Backup Status ==================
+@Serializable
+data class LogEntry(
+    val message: String,
+    val level: String, // INFO, WARN, ERROR, SUCCESS
+    val timestamp: Long = System.currentTimeMillis()
+)
+
 sealed class BackupStatus {
     data class Success(val message: String) : BackupStatus()
     data class Error(val message: String) : BackupStatus()
@@ -83,6 +89,10 @@ class MainViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    // ================== Logs ==================
+    private val _logs = MutableStateFlow<List<LogEntry>>(emptyList())
+    val logs: StateFlow<List<LogEntry>> = _logs.asStateFlow()
+
     private var activity: MainActivity? = null
     private var currentProfile: Profile? = null
 
@@ -91,7 +101,7 @@ class MainViewModel @Inject constructor(
 
     data class PingResult(val latency: Int, val timestamp: Long)
 
-    // ================== Status Broadcast Receiver ==================
+    // ================== Broadcast Receivers ==================
 
     private val statusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -108,15 +118,40 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun registerReceiver(context: Context) {
-        val filter = IntentFilter(V2RayService.ACTION_STATUS_UPDATE)
-        context.registerReceiver(statusReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+    private val logReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action != V2RayService.ACTION_LOG_UPDATE) return
+            val message = intent.getStringExtra(V2RayService.EXTRA_LOG_MESSAGE) ?: return
+            val level = intent.getStringExtra(V2RayService.EXTRA_LOG_LEVEL) ?: "INFO"
+            val entry = LogEntry(message, level)
+            // اضافه کردن لاگ جدید به ابتدای لیست (جدیدترین در بالا)
+            _logs.value = listOf(entry) + _logs.value
+            // محدود کردن تعداد لاگ‌ها به ۱۰۰۰ تا
+            if (_logs.value.size > 1000) {
+                _logs.value = _logs.value.take(1000)
+            }
+        }
     }
 
-    fun unregisterReceiver(context: Context) {
+    fun registerReceivers(context: Context) {
+        val statusFilter = IntentFilter(V2RayService.ACTION_STATUS_UPDATE)
+        context.registerReceiver(statusReceiver, statusFilter, Context.RECEIVER_NOT_EXPORTED)
+
+        val logFilter = IntentFilter(V2RayService.ACTION_LOG_UPDATE)
+        context.registerReceiver(logReceiver, logFilter, Context.RECEIVER_NOT_EXPORTED)
+    }
+
+    fun unregisterReceivers(context: Context) {
         try {
             context.unregisterReceiver(statusReceiver)
-        } catch (_: Exception) { /* already unregistered */ }
+        } catch (_: Exception) {}
+        try {
+            context.unregisterReceiver(logReceiver)
+        } catch (_: Exception) {}
+    }
+
+    fun clearLogs() {
+        _logs.value = emptyList()
     }
 
     fun clearError() {
@@ -340,29 +375,19 @@ class MainViewModel @Inject constructor(
                 val json = file.readText()
                 val backupData: FullBackupData = Json.decodeFromString(json)
 
-                // ۱. بازیابی پروفایل‌ها
                 for (profile in backupData.profiles) {
                     profileRepository.insertProfile(profile)
                 }
                 loadProfiles()
 
-                // ۲. بازیابی تنظیمات انتخاب‌شده
                 backupData.selectedProfileId?.let { id ->
                     val profile = _profiles.value.find { it.id == id }
                     profile?.let { selectProfile(it) }
                 }
 
-                // ۳. بازیابی Fronting
-                if (backupData.frontingEnabled) {
-                    _frontingEnabled.value = true
-                } else {
-                    _frontingEnabled.value = false
-                }
-
-                // ۴. بازیابی SNI Tunnel
+                _frontingEnabled.value = backupData.frontingEnabled
                 _sniTunnelEnabled.value = backupData.sniTunnelEnabled
 
-                // ۵. بازیابی Split Tunneling
                 V2RayService.splitTunnelingEnabled = backupData.splitTunnelingEnabled
                 V2RayService.splitMode = try {
                     com.v2ray.app.model.SplitMode.valueOf(backupData.splitMode)

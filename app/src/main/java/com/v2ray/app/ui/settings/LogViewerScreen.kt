@@ -1,125 +1,123 @@
 package com.v2ray.app.ui.settings
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.v2ray.app.ui.theme.*
-import com.v2ray.app.utils.Logger
-import kotlinx.coroutines.delay
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.v2ray.app.ui.theme.DarkBackground
+import com.v2ray.app.ui.theme.WhiteText
+import com.v2ray.app.viewmodel.LogEntry
+import com.v2ray.app.viewmodel.MainViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LogViewerScreen(onBack: () -> Unit) {
-    val context = LocalContext.current
+fun LogViewerScreen(
+    onBack: () -> Unit
+) {
+    val vm: MainViewModel = hiltViewModel()
+    val logs by vm.logs.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
-    var logs by rememberSaveable { mutableStateOf("Loading logs...") }
-    var isLoading by rememberSaveable { mutableStateOf(true) }
-    var refreshTrigger by rememberSaveable { mutableStateOf(0) }
-
-    // بارگذاری لاگ‌ها
-    LaunchedEffect(refreshTrigger) {
-        isLoading = true
-        // اطمینان از مقداردهی Logger
-        Logger.init(context)
-        val content = Logger.getLogContent()
-        logs = if (content.isNullOrBlank()) {
-            "No logs available.\n\nLog file path: ${Logger.getLogFilePath() ?: "Unknown"}\n\nMake sure the app has storage permissions."
-        } else {
-            content
-        }
-        isLoading = false
-    }
-
-    // رفرش خودکار هر ۵ ثانیه
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(5000)
-            refreshTrigger++
+    // اسکرول به ابتدای لیست (جدیدترین لاگ‌ها) هنگام تغییر
+    LaunchedEffect(logs.size) {
+        if (logs.isNotEmpty()) {
+            listState.scrollToItem(0)
         }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Log Viewer", color = WhiteText) },
+                title = { Text("📋 Logs", color = WhiteText) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, tint = WhiteText, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = WhiteText)
                     }
                 },
                 actions = {
-                    IconButton(onClick = { refreshTrigger++ }) {
-                        Icon(Icons.Default.Refresh, tint = CyanAccent, contentDescription = "Refresh")
-                    }
-                    IconButton(onClick = {
-                        Logger.clearLogs()
-                        refreshTrigger++
-                    }) {
-                        Icon(Icons.Default.Delete, tint = RedError, contentDescription = "Clear")
+                    IconButton(onClick = { vm.clearLogs() }) {
+                        Icon(Icons.Default.ClearAll, contentDescription = "Clear", tint = WhiteText)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = DarkBackground,
+                    scrolledContainerColor = DarkBackground
+                )
             )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(DarkBackground)
-                .padding(padding)
-        ) {
-            Text(
-                text = "Log File: ${Logger.getLogFilePath() ?: "Unknown"}",
-                color = WhiteText.copy(0.7f),
-                fontSize = 12.sp,
-                modifier = Modifier.padding(16.dp)
-            )
-            Divider(color = WhiteText.copy(0.1f))
-
-            if (isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = CyanAccent)
-                }
-            } else {
-                // نمایش لاگ‌ها با شماره خط
-                val lines = logs.split("\n")
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(8.dp)
-                ) {
-                    items(lines) { line ->
-                        if (line.isNotBlank()) {
-                            Text(
-                                text = line,
-                                color = when {
-                                    line.contains("[ERROR]") -> RedError
-                                    line.contains("[WARN]") -> CyanAccent.copy(0.8f)
-                                    else -> WhiteText.copy(0.9f)
-                                },
-                                fontSize = 10.sp,
-                                modifier = Modifier.padding(vertical = 1.dp)
-                            )
-                        }
-                    }
+        },
+        containerColor = DarkBackground
+    ) { paddingValues ->
+        if (logs.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "No logs yet.\nConnect to VPN to see logs.",
+                    color = WhiteText.copy(0.5f),
+                    fontSize = 16.sp
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 8.dp),
+                state = listState,
+                reverseLayout = false
+            ) {
+                items(
+                    items = logs,
+                    key = { it.timestamp }
+                ) { entry ->
+                    LogItem(entry = entry)
+                    Divider(color = WhiteText.copy(0.1f))
                 }
             }
         }
+    }
+}
+
+@Composable
+fun LogItem(entry: LogEntry) {
+    val (color, prefix) = when (entry.level) {
+        "ERROR" -> Pair(androidx.compose.ui.graphics.Color.Red, "❌")
+        "WARN" -> Pair(androidx.compose.ui.graphics.Color.Yellow, "⚠️")
+        "SUCCESS" -> Pair(androidx.compose.ui.graphics.Color.Green, "✅")
+        else -> Pair(androidx.compose.ui.graphics.Color.Cyan, "ℹ️")
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.Start
+    ) {
+        Text(
+            text = "$prefix ${entry.message}",
+            color = color,
+            fontSize = 13.sp,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
     }
 }

@@ -31,13 +31,16 @@ class MainActivity : ComponentActivity() {
         if (result.resultCode == Activity.RESULT_OK) {
             viewModel.onVpnPermissionGranted()
         } else {
-            // مجوز رد شد
+            viewModel.clearError()
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         viewModel.setActivity(this)
+        // ثبت هر دو Receiver (وضعیت و لاگ)
+        viewModel.registerReceivers(this)
+
         setContent {
             V2rayAppTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -45,9 +48,15 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 200)
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        viewModel.unregisterReceivers(this)
     }
 
     fun requestVpnPermission() {

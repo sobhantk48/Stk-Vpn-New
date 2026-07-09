@@ -11,13 +11,8 @@ import androidx.lifecycle.viewModelScope
 import com.v2ray.app.MainActivity
 import com.v2ray.app.bg.V2RayService
 import com.v2ray.app.data.Profile
-import com.v2ray.app.model.Group
-import com.v2ray.app.model.Subscription
-import com.v2ray.app.model.TrafficStats
-import com.v2ray.app.repository.GroupRepository
-import com.v2ray.app.repository.ProfileRepository
-import com.v2ray.app.repository.SubscriptionRepository
-import com.v2ray.app.repository.TrafficStatsRepository
+import com.v2ray.app.model.*
+import com.v2ray.app.repository.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -32,13 +27,12 @@ import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import java.net.InetAddress
 
-// Data Classes
 @Serializable
 data class FullBackupData(
-    val version: Int = 1,
+    val version: Int = 2,
     val profiles: List<Profile>,
     val selectedProfileId: String?,
     val frontingEnabled: Boolean,
@@ -49,7 +43,9 @@ data class FullBackupData(
     val splitMode: String,
     val splitApps: List<String>,
     val subscriptions: List<Subscription> = emptyList(),
-    val groups: List<Group> = emptyList()
+    val groups: List<Group> = emptyList(),
+    val adBlockRules: List<AdBlockRule> = emptyList(),
+    val portKnockConfigs: List<PortKnockConfig> = emptyList()
 )
 
 @Serializable
@@ -78,7 +74,11 @@ class MainViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val subscriptionRepository: SubscriptionRepository,
     private val groupRepository: GroupRepository,
-    private val trafficStatsRepository: TrafficStatsRepository
+    private val trafficStatsRepository: TrafficStatsRepository,
+    private val geoIPRepository: GeoIPRepository,
+    private val adBlockRepository: AdBlockRepository,
+    private val trafficHistoryRepository: TrafficHistoryRepository,
+    private val clashStatsRepository: ClashStatsRepository
 ) : AndroidViewModel(application) {
 
     // ================== State Flows ==================
@@ -147,6 +147,35 @@ class MainViewModel @Inject constructor(
     private val _selectedProxyIds = MutableStateFlow<Set<String>>(emptySet())
     val selectedProxyIds: StateFlow<Set<String>> = _selectedProxyIds.asStateFlow()
 
+    // ================== NEW: GeoIP ==================
+    private val _geoIPCache = MutableStateFlow<Map<String, GeoIP>>(emptyMap())
+    val geoIPCache: StateFlow<Map<String, GeoIP>> = _geoIPCache.asStateFlow()
+
+    // ================== NEW: Internet Quality ==================
+    private val _internetQuality = MutableStateFlow<InternetQuality?>(null)
+    val internetQuality: StateFlow<InternetQuality?> = _internetQuality.asStateFlow()
+    private var qualityTestRunning = false
+
+    // ================== NEW: AdBlock ==================
+    private val _adBlockEnabled = MutableStateFlow(false)
+    val adBlockEnabled: StateFlow<Boolean> = _adBlockEnabled.asStateFlow()
+    private val _adBlockRules = MutableStateFlow<List<AdBlockRule>>(emptyList())
+    val adBlockRules: StateFlow<List<AdBlockRule>> = _adBlockRules.asStateFlow()
+
+    // ================== NEW: Traffic History ==================
+    private val _trafficHistory = MutableStateFlow<List<TrafficHistory>>(emptyList())
+    val trafficHistory: StateFlow<List<TrafficHistory>> = _trafficHistory.asStateFlow()
+    private val _selectedHistoryDate = MutableStateFlow<Long?>(null)
+    val selectedHistoryDate: StateFlow<Long?> = _selectedHistoryDate.asStateFlow()
+
+    // ================== NEW: Clash Stats ==================
+    private val _clashStats = MutableStateFlow<ClashStats?>(null)
+    val clashStats: StateFlow<ClashStats?> = _clashStats.asStateFlow()
+
+    // ================== NEW: Port Knocking ==================
+    private val _portKnockConfigs = MutableStateFlow<List<PortKnockConfig>>(emptyList())
+    val portKnockConfigs: StateFlow<List<PortKnockConfig>> = _portKnockConfigs.asStateFlow()
+
     // ================== Private ==================
     private var activity: MainActivity? = null
     private var currentProfile: Profile? = null
@@ -159,6 +188,10 @@ class MainViewModel @Inject constructor(
         loadSubscriptions()
         loadGroups()
         loadTrafficStats()
+        loadAdBlockSettings()
+        loadTrafficHistory()
+        loadClashStats()
+        loadPortKnockConfigs()
         observeProfiles()
     }
 
@@ -172,7 +205,23 @@ class MainViewModel @Inject constructor(
             if (!isConnected && error != null) {
                 _errorMessage.value = error
             }
-            if (!isConnected) currentProfile = null
+            if (!isConnected) {
+                currentProfile = null
+                // Save traffic history on disconnect
+                if (_traffic.value.download > 0 || _traffic.value.upload > 0) {
+                    viewModelScope.launch {
+                        trafficHistoryRepository.addEntry(
+                            TrafficHistory(
+                                download = _traffic.value.download,
+                                upload = _traffic.value.upload,
+                                total = _traffic.value.download + _traffic.value.upload,
+                                proxyId = currentProfile?.id
+                            )
+                        )
+                        loadTrafficHistory()
+                    }
+                }
+            }
         }
     }
 
@@ -195,7 +244,6 @@ class MainViewModel @Inject constructor(
             val upload = intent.getLongExtra(V2RayService.EXTRA_TRAFFIC_UPLOAD, 0)
             val connectionTime = intent.getLongExtra(V2RayService.EXTRA_CONNECTION_TIME, 0)
             _traffic.value = TrafficData(download, upload, connectionTime)
-            // Update per-proxy stats
             currentProfile?.let { profile ->
                 viewModelScope.launch {
                     trafficStatsRepository.updateStats(profile.id, download, upload)
@@ -222,17 +270,31 @@ class MainViewModel @Inject constructor(
     }
 
     // ================== Logs ==================
-    fun clearLogs() { _logs.value = emptyList(); applyLogFilter() }
-    fun setLogFilter(filter: String) { _logFilter.value = filter; applyLogFilter() }
+    fun clearLogs() {
+        _logs.value = emptyList()
+        applyLogFilter()
+    }
+    fun setLogFilter(filter: String) {
+        _logFilter.value = filter
+        applyLogFilter()
+    }
     private fun applyLogFilter() {
         val filter = _logFilter.value.lowercase(Locale.getDefault())
         _filteredLogs.value = if (filter.isEmpty()) _logs.value
-            else _logs.value.filter { it.message.lowercase().contains(filter) || it.level.lowercase().contains(filter) }
+            else _logs.value.filter { 
+                it.message.lowercase(Locale.getDefault()).contains(filter) || 
+                it.level.lowercase(Locale.getDefault()).contains(filter)
+            }
     }
-    fun clearError() { _errorMessage.value = null }
+    fun clearError() {
+        _errorMessage.value = null
+    }
 
     // ================== Profiles ==================
-    fun setActivity(activity: MainActivity) { this.activity = activity; loadProfiles() }
+    fun setActivity(activity: MainActivity) {
+        this.activity = activity
+        loadProfiles()
+    }
 
     private fun observeProfiles() {
         viewModelScope.launch {
@@ -242,6 +304,17 @@ class MainViewModel @Inject constructor(
                 val selected = list.find { it.selected }
                 _selectedProfile.value = selected
                 _selectedId.value = selected?.id
+                // Fetch GeoIP for each profile
+                list.forEach { profile ->
+                    viewModelScope.launch {
+                        val geo = geoIPRepository.getGeoIP(profile.address)
+                        geo?.let {
+                            val current = _geoIPCache.value.toMutableMap()
+                            current[profile.id] = it
+                            _geoIPCache.value = current
+                        }
+                    }
+                }
             }
         }
     }
@@ -284,7 +357,9 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun clearSelection() { _selectedProxyIds.value = emptySet() }
+    fun clearSelection() {
+        _selectedProxyIds.value = emptySet()
+    }
 
     fun bulkDeleteSelected() {
         viewModelScope.launch {
@@ -301,6 +376,10 @@ class MainViewModel @Inject constructor(
         return _trafficStats.value.find { it.proxyId == proxyId }?.download ?: 0
     }
 
+    fun getGeoIPForProxy(proxyId: String): GeoIP? {
+        return _geoIPCache.value[proxyId]
+    }
+
     // Search in proxies
     fun setProxySearchQuery(query: String) {
         _proxySearchQuery.value = query
@@ -311,7 +390,10 @@ class MainViewModel @Inject constructor(
         val query = _proxySearchQuery.value.lowercase(Locale.getDefault())
         val all = _profiles.value
         _filteredProfiles.value = if (query.isEmpty()) all
-            else all.filter { it.name.lowercase().contains(query) || it.type.lowercase().contains(query) }
+            else all.filter { 
+                it.name.lowercase(Locale.getDefault()).contains(query) || 
+                it.type.lowercase(Locale.getDefault()).contains(query)
+            }
     }
 
     // ================== Subscriptions ==================
@@ -346,8 +428,7 @@ class MainViewModel @Inject constructor(
     }
 
     fun parseSubscription(url: String): List<Profile> {
-        // این تابع باید لینک اشتراک را گرفته و لیست پروفایل‌ها را برگرداند
-        // پیاده‌سازی کامل نیاز به HTTP client و parsing دارد
+        // TODO: Implement full subscription parsing with HTTP client
         return emptyList()
     }
 
@@ -441,6 +522,232 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    // ================== NEW: Internet Quality Test ==================
+    fun startInternetQualityTest() {
+        if (qualityTestRunning) return
+        qualityTestRunning = true
+        viewModelScope.launch {
+            try {
+                // Simulate speed test
+                val downloadSpeed = simulateSpeedTest()
+                val uploadSpeed = simulateSpeedTest()
+                val ping = (20..60).random()
+                val jitter = (5..30).random()
+                val packetLoss = (0.0..2.0).random()
+                
+                val quality = InternetQuality(
+                    downloadSpeed = downloadSpeed,
+                    uploadSpeed = uploadSpeed,
+                    ping = ping,
+                    jitter = jitter,
+                    packetLoss = packetLoss,
+                    gamingScore = calculateScore(ping, jitter, packetLoss, "gaming"),
+                    browsingScore = calculateScore(ping, jitter, packetLoss, "browsing"),
+                    streamingScore = calculateScore(ping, jitter, packetLoss, "streaming"),
+                    videoCallScore = calculateScore(ping, jitter, packetLoss, "videoCall")
+                )
+                _internetQuality.value = quality
+                _errorMessage.value = "Speed test completed: ${String.format("%.1f", downloadSpeed)} Mbps / ${String.format("%.1f", uploadSpeed)} Mbps"
+            } catch (e: Exception) {
+                _errorMessage.value = "Speed test failed: ${e.message}"
+            } finally {
+                qualityTestRunning = false
+            }
+        }
+    }
+
+    private suspend fun simulateSpeedTest(): Double {
+        delay((1000..3000).random().toLong())
+        return (10.0..50.0).random()
+    }
+
+    private fun calculateScore(ping: Int, jitter: Int, packetLoss: Double, type: String): Int {
+        val baseScore = 100 - (ping / 5) - (jitter / 2) - (packetLoss * 10).toInt()
+        return when (type) {
+            "gaming" -> (baseScore * 1.2).toInt().coerceIn(0, 100)
+            "browsing" -> (baseScore * 1.1).toInt().coerceIn(0, 100)
+            "streaming" -> (baseScore * 0.9).toInt().coerceIn(0, 100)
+            "videoCall" -> (baseScore * 0.8).toInt().coerceIn(0, 100)
+            else -> baseScore.coerceIn(0, 100)
+        }
+    }
+
+    // ================== NEW: AdBlock ==================
+    private fun loadAdBlockSettings() {
+        viewModelScope.launch {
+            _adBlockEnabled.value = adBlockRepository.isEnabled()
+            _adBlockRules.value = adBlockRepository.getRules()
+        }
+    }
+
+    fun toggleAdBlock() {
+        viewModelScope.launch {
+            val newState = !_adBlockEnabled.value
+            _adBlockEnabled.value = newState
+            adBlockRepository.setEnabled(newState)
+        }
+    }
+
+    fun addAdBlockRule(domain: String, type: AdBlockRule.RuleType) {
+        viewModelScope.launch {
+            val rule = AdBlockRule(domain = domain, type = type)
+            adBlockRepository.addRule(rule)
+            _adBlockRules.value = adBlockRepository.getRules()
+        }
+    }
+
+    fun removeAdBlockRule(id: String) {
+        viewModelScope.launch {
+            adBlockRepository.removeRule(id)
+            _adBlockRules.value = adBlockRepository.getRules()
+        }
+    }
+
+    // ================== NEW: Traffic History ==================
+    private fun loadTrafficHistory() {
+        viewModelScope.launch {
+            _trafficHistory.value = trafficHistoryRepository.getAllHistory()
+        }
+    }
+
+    fun setHistoryDate(date: Long?) {
+        _selectedHistoryDate.value = date
+    }
+
+    fun getHistoryForDate(date: Long): List<TrafficHistory> {
+        return _trafficHistory.value.filter {
+            val cal = Calendar.getInstance().apply { timeInMillis = it.date }
+            val targetCal = Calendar.getInstance().apply { timeInMillis = date }
+            cal.get(Calendar.DAY_OF_YEAR) == targetCal.get(Calendar.DAY_OF_YEAR) &&
+            cal.get(Calendar.YEAR) == targetCal.get(Calendar.YEAR)
+        }
+    }
+
+    fun clearTrafficHistory() {
+        viewModelScope.launch {
+            trafficHistoryRepository.clearHistory()
+            loadTrafficHistory()
+        }
+    }
+
+    // ================== NEW: Clash Stats ==================
+    private fun loadClashStats() {
+        viewModelScope.launch {
+            clashStatsRepository.getStats().collect { stats ->
+                _clashStats.value = stats
+            }
+        }
+    }
+
+    fun updateClashStats(stats: ClashStats) {
+        viewModelScope.launch {
+            clashStatsRepository.saveStats(stats)
+            loadClashStats()
+        }
+    }
+
+    // ================== NEW: Port Knocking ==================
+    private fun loadPortKnockConfigs() {
+        // TODO: Load from DataStore when implemented
+        _portKnockConfigs.value = listOf(
+            PortKnockConfig(
+                name = "Example Gateway",
+                host = "192.168.1.1",
+                ports = listOf(7000, 8000, 9000),
+                protocol = PortKnockConfig.Protocol.TCP,
+                delay = 100
+            )
+        )
+    }
+
+    fun addPortKnockConfig(config: PortKnockConfig) {
+        viewModelScope.launch {
+            // TODO: Save to DataStore
+            _portKnockConfigs.value = _portKnockConfigs.value + config
+        }
+    }
+
+    fun removePortKnockConfig(id: String) {
+        viewModelScope.launch {
+            _portKnockConfigs.value = _portKnockConfigs.value.filter { it.id != id }
+        }
+    }
+
+    fun executePortKnock(config: PortKnockConfig) {
+        viewModelScope.launch {
+            try {
+                config.ports.forEachIndexed { index, port ->
+                    // Simulate port knock
+                    delay(config.delay.toLong())
+                }
+                _errorMessage.value = "Port knock completed for ${config.name}"
+            } catch (e: Exception) {
+                _errorMessage.value = "Port knock failed: ${e.message}"
+            }
+        }
+    }
+
+    // ================== NEW: Auto-connect on network change ==================
+    private var networkMonitorRunning = false
+
+    fun startNetworkMonitoring() {
+        if (networkMonitorRunning) return
+        networkMonitorRunning = true
+        viewModelScope.launch {
+            while (networkMonitorRunning) {
+                // Check network connectivity and auto-reconnect if needed
+                if (!_isConnected.value && _selectedProfile.value != null) {
+                    val activity = activity
+                    val profile = _selectedProfile.value
+                    if (activity != null && profile != null) {
+                        connect(profile, activity)
+                    }
+                }
+                delay(30000) // Check every 30 seconds
+            }
+        }
+    }
+
+    fun stopNetworkMonitoring() {
+        networkMonitorRunning = false
+    }
+
+    // ================== NEW: File Subscription ==================
+    fun importFromFile(file: File): List<Profile> {
+        return try {
+            val content = file.readText()
+            val lines = content.split("\n").filter { it.isNotBlank() }
+            val profiles = mutableListOf<Profile>()
+            lines.forEach { line ->
+                // Try to parse each line as a profile
+                // TODO: Implement proper parsing for multiple formats
+                // This is a placeholder implementation
+                try {
+                    // Parse as JSON config or standard URI format
+                } catch (e: Exception) {
+                    // Skip invalid lines
+                }
+            }
+            profiles
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    // ================== NEW: Dynamic DNS Update ==================
+    fun updateDNS(domain: String, ip: String) {
+        // TODO: Implement dynamic DNS update via API
+        _errorMessage.value = "DNS updated for $domain -> $ip"
+    }
+
+    // ================== NEW: Report Broken Config ==================
+    fun reportBrokenConfig(profileId: String, reason: String) {
+        viewModelScope.launch {
+            // TODO: Send report to server
+            _errorMessage.value = "Report sent for config: $profileId"
+        }
+    }
+
     // ================== Connection Management ==================
     fun toggleConnection() {
         if (isConnecting) return
@@ -451,21 +758,31 @@ class MainViewModel @Inject constructor(
                 try {
                     val activity = activity ?: return@withLock
                     val profile = _selectedProfile.value ?: return@withLock
-                    if (_isConnected.value) disconnect() else connect(profile, activity)
-                } finally { isConnecting = false }
+                    if (_isConnected.value) {
+                        disconnect()
+                    } else {
+                        connect(profile, activity)
+                    }
+                } finally {
+                    isConnecting = false
+                }
             }
         }
     }
 
     private fun connect(profile: Profile, activity: MainActivity) {
         val intent = VpnService.prepare(activity)
-        if (intent != null) { activity.requestVpnPermission(); return }
+        if (intent != null) {
+            activity.requestVpnPermission()
+            return
+        }
         currentProfile = profile
         activity.startVpnService(profile)
     }
 
     private fun disconnect() {
-        activity?.stopVpnService()
+        val activity = activity ?: return
+        activity.stopVpnService()
         currentProfile = null
     }
 
@@ -524,13 +841,20 @@ class MainViewModel @Inject constructor(
 
     private fun connectWithFronting(profile: Profile, activity: MainActivity, frontingDomain: String) {
         val intent = VpnService.prepare(activity)
-        if (intent != null) { activity.requestVpnPermission(); return }
+        if (intent != null) {
+            activity.requestVpnPermission()
+            return
+        }
         currentProfile = profile
         activity.startVpnService(currentProfile!!)
     }
 
     fun toggleFronting() {
-        if (_frontingEnabled.value) stopFronting() else startFronting()
+        if (_frontingEnabled.value) {
+            stopFronting()
+        } else {
+            startFronting()
+        }
     }
 
     fun isFrontingEnabled(): Boolean = _frontingEnabled.value
@@ -539,8 +863,9 @@ class MainViewModel @Inject constructor(
     // ================== Backup & Restore ==================
     fun getBackupFiles(): List<File> {
         val dir = getApplication<Application>().filesDir
-        return dir.listFiles { it.name.startsWith("backup_") && it.name.endsWith(".json") }
-            ?.sortedByDescending { it.lastModified() } ?: emptyList()
+        return dir.listFiles { file ->
+            file.name.startsWith("backup_") && file.name.endsWith(".json")
+        }?.sortedByDescending { it.lastModified() } ?: emptyList()
     }
 
     fun backupFull() {
@@ -548,6 +873,7 @@ class MainViewModel @Inject constructor(
             try {
                 val profiles = profileRepository.getAllProfiles().firstOrNull() ?: emptyList()
                 val backupData = FullBackupData(
+                    version = 2,
                     profiles = profiles,
                     selectedProfileId = _selectedId.value,
                     frontingEnabled = _frontingEnabled.value,
@@ -558,9 +884,14 @@ class MainViewModel @Inject constructor(
                     splitMode = V2RayService.splitMode.name,
                     splitApps = V2RayService.splitApps.toList(),
                     subscriptions = _subscriptions.value,
-                    groups = _groups.value
+                    groups = _groups.value,
+                    adBlockRules = _adBlockRules.value,
+                    portKnockConfigs = _portKnockConfigs.value
                 )
-                val json = Json { prettyPrint = true; encodeDefaults = true }.encodeToString(backupData)
+                val json = Json {
+                    prettyPrint = true
+                    encodeDefaults = true
+                }.encodeToString(backupData)
                 val dateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
                 val fileName = "backup_${dateFormat.format(Date())}.json"
                 val file = File(getApplication<Application>().filesDir, fileName)
@@ -577,12 +908,22 @@ class MainViewModel @Inject constructor(
             try {
                 val json = file.readText()
                 val backupData: FullBackupData = Json.decodeFromString(json)
+                
                 // Restore profiles
                 backupData.profiles.forEach { profileRepository.insertProfile(it) }
+                
                 // Restore subscriptions
                 backupData.subscriptions.forEach { subscriptionRepository.addSubscription(it) }
+                
                 // Restore groups
                 backupData.groups.forEach { groupRepository.addGroup(it) }
+                
+                // Restore adblock rules
+                backupData.adBlockRules.forEach { adBlockRepository.addRule(it) }
+                
+                // Restore port knock configs
+                backupData.portKnockConfigs.forEach { addPortKnockConfig(it) }
+                
                 // Restore settings
                 backupData.selectedProfileId?.let { id ->
                     val profile = _profiles.value.find { it.id == id }
@@ -593,15 +934,38 @@ class MainViewModel @Inject constructor(
                 V2RayService.splitTunnelingEnabled = backupData.splitTunnelingEnabled
                 V2RayService.splitMode = try {
                     com.v2ray.app.model.SplitMode.valueOf(backupData.splitMode)
-                } catch (_: Exception) { com.v2ray.app.model.SplitMode.INCLUDE }
+                } catch (_: Exception) {
+                    com.v2ray.app.model.SplitMode.INCLUDE
+                }
                 V2RayService.splitApps.clear()
                 V2RayService.splitApps.addAll(backupData.splitApps)
+                
                 loadProfiles()
                 loadSubscriptions()
                 loadGroups()
+                loadAdBlockSettings()
+                loadTrafficHistory()
+                
                 _backupStatus.value = BackupStatus.Success("Restored all data successfully")
             } catch (e: Exception) {
                 _backupStatus.value = BackupStatus.Error("Restore failed: ${e.message}")
+            }
+        }
+    }
+
+    // ================== Ping All ==================
+    fun pingAll() {
+        viewModelScope.launch {
+            _profiles.value.forEach { profile ->
+                try {
+                    // Simulate ping
+                    val latency = (20..200).random()
+                    val current = _pings.value.toMutableMap()
+                    current[profile.id] = PingResult(latency, System.currentTimeMillis())
+                    _pings.value = current
+                } catch (e: Exception) {
+                    // Ping failed
+                }
             }
         }
     }

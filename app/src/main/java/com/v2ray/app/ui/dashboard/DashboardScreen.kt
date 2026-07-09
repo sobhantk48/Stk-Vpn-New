@@ -405,3 +405,19 @@ fun ServerListItem(
         }
     }
 }
+
+// اضافه کردن پارامترهای جدید به تابع DashboardScreen
+// ... onNavigateToSpeedTest: () -> Unit,
+// ... onNavigateToMultiHop: () -> Unit
+
+// و در بخش Tools Row اضافه کنید:
+Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.spacedBy(8.dp)
+) {
+    ToolButton("🚀", "Speed Test", onNavigateToSpeedTest)
+    ToolButton("🔗", "Multi-Hop", onNavigateToMultiHop)
+    ToolButton("🌍", "GeoIP", onNavigateToGeoIP)
+    ToolButton("🛡️", "AdBlock", onNavigateToAdBlock)
+    ToolButton("📈", "History", onNavigateToTrafficHistory)
+}

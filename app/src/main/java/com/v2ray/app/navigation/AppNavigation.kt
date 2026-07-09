@@ -22,6 +22,7 @@ import com.v2ray.app.ui.settings.LogViewerScreen
 import com.v2ray.app.ui.settings.SettingsScreen
 import com.v2ray.app.ui.splash.SplashScreen
 import com.v2ray.app.ui.subscription.SubscriptionScreen
+import com.v2ray.app.ui.tools.*
 import com.v2ray.app.utils.OnboardingManager
 import com.v2ray.app.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
@@ -38,6 +39,12 @@ object AppRoutes {
     const val LOGS = "logs"
     const val SUBSCRIPTIONS = "subscriptions"
     const val GROUPS = "groups"
+    const val INTERNET_QUALITY = "internet_quality"
+    const val GEOIP = "geoip"
+    const val ADBLOCK = "adblock"
+    const val TRAFFIC_HISTORY = "traffic_history"
+    const val SPEED_TEST = "speed_test"
+    const val MULTI_HOP = "multi_hop"
 }
 
 @Composable
@@ -46,7 +53,6 @@ fun AppNavigation() {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-
     val viewModel: MainViewModel = hiltViewModel()
     val adminLoggedIn by AdminSession.loggedIn.collectAsState()
 
@@ -56,10 +62,7 @@ fun AppNavigation() {
         AppRoutes.SPLASH
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = startDestination
-    ) {
+    NavHost(navController = navController, startDestination = startDestination) {
         composable(AppRoutes.ONBOARDING) {
             OnboardingScreen(
                 onFinish = {
@@ -72,7 +75,6 @@ fun AppNavigation() {
                 }
             )
         }
-
         composable(AppRoutes.SPLASH) {
             SplashScreen(
                 onFinish = {
@@ -82,7 +84,6 @@ fun AppNavigation() {
                 }
             )
         }
-
         composable(AppRoutes.HOME) {
             DashboardScreen(
                 nav = navController,
@@ -109,10 +110,33 @@ fun AppNavigation() {
                 onNavigateToLogs = {
                     scope.launch { drawerState.close() }
                     navController.navigate(AppRoutes.LOGS)
+                },
+                onNavigateToInternetQuality = {
+                    scope.launch { drawerState.close() }
+                    navController.navigate(AppRoutes.INTERNET_QUALITY)
+                },
+                onNavigateToGeoIP = {
+                    scope.launch { drawerState.close() }
+                    navController.navigate(AppRoutes.GEOIP)
+                },
+                onNavigateToAdBlock = {
+                    scope.launch { drawerState.close() }
+                    navController.navigate(AppRoutes.ADBLOCK)
+                },
+                onNavigateToTrafficHistory = {
+                    scope.launch { drawerState.close() }
+                    navController.navigate(AppRoutes.TRAFFIC_HISTORY)
+                },
+                onNavigateToSpeedTest = {
+                    scope.launch { drawerState.close() }
+                    navController.navigate(AppRoutes.SPEED_TEST)
+                },
+                onNavigateToMultiHop = {
+                    scope.launch { drawerState.close() }
+                    navController.navigate(AppRoutes.MULTI_HOP)
                 }
             )
         }
-
         composable(AppRoutes.ADMIN_LOGIN) {
             AdminLoginScreen(
                 onSuccess = {
@@ -123,50 +147,44 @@ fun AppNavigation() {
                 onBack = { navController.popBackStack() }
             )
         }
-
         composable(AppRoutes.ADMIN) {
-            AdminScreen(
-                vm = viewModel,
-                onBack = { navController.popBackStack() }
-            )
+            AdminScreen(vm = viewModel, onBack = { navController.popBackStack() })
         }
-
         composable(AppRoutes.SETTINGS) {
-            SettingsScreen(
-                vm = viewModel,
-                onBack = { navController.popBackStack() }
-            )
+            SettingsScreen(vm = viewModel, onBack = { navController.popBackStack() })
         }
-
         composable(AppRoutes.LOCATION_LIST) {
-            LocationListScreen(
-                vm = viewModel,
-                onBack = { navController.popBackStack() }
-            )
+            LocationListScreen(vm = viewModel, onBack = { navController.popBackStack() })
         }
-
         composable(AppRoutes.ABOUT) {
-            AboutScreen(
-                onBack = { navController.popBackStack() }
-            )
+            AboutScreen(onBack = { navController.popBackStack() })
         }
-
         composable(AppRoutes.LOGS) {
-            LogViewerScreen(
-                onBack = { navController.popBackStack() }
-            )
+            LogViewerScreen(onBack = { navController.popBackStack() })
         }
-
         composable(AppRoutes.SUBSCRIPTIONS) {
-            SubscriptionScreen(
-                onBack = { navController.popBackStack() }
-            )
+            SubscriptionScreen(onBack = { navController.popBackStack() })
         }
-
         composable(AppRoutes.GROUPS) {
-            GroupsScreen(
-                onBack = { navController.popBackStack() }
-            )
+            GroupsScreen(onBack = { navController.popBackStack() })
+        }
+        composable(AppRoutes.INTERNET_QUALITY) {
+            InternetQualityScreen(onBack = { navController.popBackStack() })
+        }
+        composable(AppRoutes.GEOIP) {
+            GeoIPScreen(onBack = { navController.popBackStack() })
+        }
+        composable(AppRoutes.ADBLOCK) {
+            AdBlockScreen(onBack = { navController.popBackStack() })
+        }
+        composable(AppRoutes.TRAFFIC_HISTORY) {
+            TrafficHistoryScreen(onBack = { navController.popBackStack() })
+        }
+        composable(AppRoutes.SPEED_TEST) {
+            SpeedTestScreen(onBack = { navController.popBackStack() })
+        }
+        composable(AppRoutes.MULTI_HOP) {
+            MultiHopScreen(onBack = { navController.popBackStack() })
         }
     }
 }

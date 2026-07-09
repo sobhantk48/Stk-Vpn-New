@@ -22,12 +22,22 @@ import com.v2ray.app.v2ray.SingBoxManager
 import io.nekohasekai.libbox.PlatformInterface
 import io.nekohasekai.libbox.TunOptions
 import kotlinx.coroutines.*
+import java.text.DecimalFormat
 
 class V2RayService : VpnService(), PlatformInterface {
     companion object {
         private const val TAG = "V2RayService"
         const val ACTION_CONNECT = "com.v2ray.app.CONNECT"
         const val ACTION_DISCONNECT = "com.v2ray.app.DISCONNECT"
+        const val ACTION_STATUS_UPDATE = "com.v2ray.app.STATUS_UPDATE"
+        const val ACTION_LOG_UPDATE = "com.v2ray.app.LOG_UPDATE"
+        const val ACTION_TRAFFIC_UPDATE = "com.v2ray.app.TRAFFIC_UPDATE"
+        const val EXTRA_IS_CONNECTED = "is_connected"
+        const val EXTRA_ERROR_MESSAGE = "error_message"
+        const val EXTRA_LOG_MESSAGE = "log_message"
+        const val EXTRA_LOG_LEVEL = "log_level"
+        const val EXTRA_TRAFFIC_DOWNLOAD = "traffic_download"
+        const val EXTRA_TRAFFIC_UPLOAD = "traffic_upload"
         const val NOTIFICATION_ID = 1001
         const val CHANNEL_ID = "v2ray_channel"
         const val EXTRA_CONFIG = "config"
@@ -43,8 +53,14 @@ class V2RayService : VpnService(), PlatformInterface {
     private var vpnInterface: ParcelFileDescriptor? = null
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var isRunning = false
-    private val singBoxManager = SingBoxManager(this, this) // ارسال this به عنوان PlatformInterface
+    private val singBoxManager = SingBoxManager(this, this)
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    // آمار ترافیک
+    private var trafficJob: Job? = null
+    private var lastDownload = 0L
+    private var lastUpload = 0L
+    private val decimalFormat = DecimalFormat("#.##")
 
     private val binder = ServiceBinder().apply {
         setStatusCallback { status ->
@@ -57,6 +73,7 @@ class V2RayService : VpnService(), PlatformInterface {
         Logger.i("V2RayService onCreate (bg process)")
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification("Initializing...", false))
+        sendLogBroadcast("Service created", "INFO")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -69,22 +86,29 @@ class V2RayService : VpnService(), PlatformInterface {
 
                     if (profile != null) {
                         Logger.i("Received CONNECT with Profile: ${profile.name}")
+                        sendLogBroadcast("Connecting to ${profile.name}...", "INFO")
                         startVpn(profile = profile, profileId = profileId)
                     } else if (config != null) {
                         Logger.i("Received CONNECT with config (fallback)")
+                        sendLogBroadcast("Connecting with config...", "INFO")
                         startVpn(config = config, profileId = profileId)
                     } else {
                         Logger.e("No profile or config provided")
+                        sendLogBroadcast("No profile or config provided", "ERROR")
+                        sendStatusBroadcast(false, "No profile or config provided")
                         return START_NOT_STICKY
                     }
                 }
                 ACTION_DISCONNECT -> {
                     Logger.i("Received DISCONNECT action")
+                    sendLogBroadcast("Disconnecting...", "INFO")
                     stopVpn()
                 }
             }
         } catch (e: Exception) {
             Logger.e("Error in onStartCommand", e)
+            sendLogBroadcast("Error: ${e.message}", "ERROR")
+            sendStatusBroadcast(false, e.message ?: "Unknown error")
             stopVpn()
         }
         return START_STICKY
@@ -95,8 +119,11 @@ class V2RayService : VpnService(), PlatformInterface {
     // ================== PlatformInterface Implementation ==================
 
     override fun openTun(options: TunOptions): Int {
+        sendLogBroadcast("Opening TUN interface...", "INFO")
         if (prepare(this) != null) {
             Logger.e("VPN permission not granted")
+            sendLogBroadcast("VPN permission not granted", "ERROR")
+            sendStatusBroadcast(false, "VPN permission not granted")
             return -1
         }
 
@@ -113,7 +140,6 @@ class V2RayService : VpnService(), PlatformInterface {
                 )
             )
 
-        // اضافه کردن آدرس‌های IPv4
         options.inet4Address?.forEach { addr ->
             val parts = addr.split("/")
             if (parts.size == 2) {
@@ -121,7 +147,6 @@ class V2RayService : VpnService(), PlatformInterface {
             }
         }
 
-        // اضافه کردن آدرس‌های IPv6
         options.inet6Address?.forEach { addr ->
             val parts = addr.split("/")
             if (parts.size == 2) {
@@ -129,7 +154,6 @@ class V2RayService : VpnService(), PlatformInterface {
             }
         }
 
-        // اضافه کردن routeها
         if (options.autoRoute) {
             options.inet4RouteAddress?.forEach { route ->
                 val parts = route.split("/")
@@ -147,27 +171,21 @@ class V2RayService : VpnService(), PlatformInterface {
             builder.addRoute("0.0.0.0", 0)
         }
 
-        // Split Tunneling
         if (splitTunnelingEnabled && splitApps.isNotEmpty()) {
             when (splitMode) {
                 SplitMode.INCLUDE -> {
                     splitApps.forEach { pkg ->
-                        try {
-                            builder.addDisallowedApplication(pkg)
-                        } catch (_: Exception) {}
+                        try { builder.addDisallowedApplication(pkg) } catch (_: Exception) {}
                     }
                 }
                 SplitMode.EXCLUDE -> {
                     splitApps.forEach { pkg ->
-                        try {
-                            builder.addAllowedApplication(pkg)
-                        } catch (_: Exception) {}
+                        try { builder.addAllowedApplication(pkg) } catch (_: Exception) {}
                     }
                 }
             }
         }
 
-        // اضافه کردن DNS
         options.dnsServerAddress?.forEach { dns ->
             builder.addDnsServer(dns)
         }
@@ -175,9 +193,12 @@ class V2RayService : VpnService(), PlatformInterface {
         return try {
             val pfd = builder.establish()
             vpnInterface = pfd
+            sendLogBroadcast("TUN interface opened successfully (fd: ${pfd?.fd})", "INFO")
             pfd?.fd ?: -1
         } catch (e: Exception) {
             Logger.e("openTun failed", e)
+            sendLogBroadcast("TUN open failed: ${e.message}", "ERROR")
+            sendStatusBroadcast(false, e.message ?: "Tun open failed")
             -1
         }
     }
@@ -191,8 +212,13 @@ class V2RayService : VpnService(), PlatformInterface {
     private fun startVpn(profile: Profile? = null, config: String? = null, profileId: String = "") {
         if (isRunning) {
             Logger.d("VPN already running, stopping first")
+            sendLogBroadcast("VPN already running, stopping first", "WARN")
             stopVpn()
         }
+
+        // ریست آمار
+        lastDownload = 0L
+        lastUpload = 0L
 
         serviceScope.launch {
             try {
@@ -205,33 +231,40 @@ class V2RayService : VpnService(), PlatformInterface {
                 }
 
                 Logger.i("Starting sing-box with config length: ${finalConfig.length}")
-                val result = singBoxManager.startV2Ray(finalConfig, 0) // fd در PlatformInterface مدیریت می‌شود
+                sendLogBroadcast("Starting sing-box...", "INFO")
+                val result = singBoxManager.startV2Ray(finalConfig, 0)
                 if (result.isSuccess) {
                     isRunning = true
                     binder.setStatus("Connected")
+                    sendLogBroadcast("VPN connected successfully", "SUCCESS")
                     mainHandler.post {
                         updateNotification("🟢 Connected", true)
+                        sendStatusBroadcast(true)
                     }
+                    // شروع ارسال آمار
+                    startTrafficMonitoring()
                     Logger.i("V2Ray started successfully")
                 } else {
                     val error = result.exceptionOrNull()?.message ?: "Unknown error"
                     Logger.e("V2Ray start failed: $error", result.exceptionOrNull())
+                    sendLogBroadcast("Connection failed: $error", "ERROR")
                     binder.setError(error)
                     mainHandler.post {
                         updateNotification("❌ Connection Failed: $error", false)
+                        sendStatusBroadcast(false, error)
                     }
                 }
             } catch (e: Exception) {
                 Logger.e("startVpn error", e)
+                sendLogBroadcast("Error: ${e.message}", "ERROR")
                 binder.setError(e.message ?: "Unknown error")
                 mainHandler.post {
                     updateNotification("❌ Error: ${e.message}", false)
+                    sendStatusBroadcast(false, e.message ?: "Unknown error")
                 }
             } finally {
                 if (!isRunning) {
-                    try {
-                        vpnInterface?.close()
-                    } catch (_: Exception) {}
+                    try { vpnInterface?.close() } catch (_: Exception) {}
                     vpnInterface = null
                 }
             }
@@ -242,22 +275,96 @@ class V2RayService : VpnService(), PlatformInterface {
         serviceScope.launch {
             try {
                 Logger.i("Stopping VPN...")
+                sendLogBroadcast("Stopping VPN...", "INFO")
+                stopTrafficMonitoring()
                 singBoxManager.stopV2Ray()
                 vpnInterface?.close()
                 vpnInterface = null
                 isRunning = false
                 binder.setStatus("Disconnected")
+                sendLogBroadcast("VPN disconnected", "INFO")
+                // ارسال آمار صفر
+                sendTrafficBroadcast(0, 0)
                 mainHandler.post {
                     updateNotification("⏹️ Disconnected", false)
+                    sendStatusBroadcast(false)
                 }
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 Logger.i("VPN stopped")
             } catch (e: Exception) {
                 Logger.e("stopVpn error", e)
+                sendLogBroadcast("Stop error: ${e.message}", "ERROR")
+                sendStatusBroadcast(false, e.message ?: "Stop error")
             }
         }
     }
+
+    // ================== Traffic Monitoring ==================
+
+    private fun startTrafficMonitoring() {
+        trafficJob?.cancel()
+        trafficJob = serviceScope.launch {
+            while (isRunning) {
+                try {
+                    // دریافت آمار از sing-box
+                    val stats = singBoxManager.getTrafficStats()
+                    if (stats != null) {
+                        val download = stats.downloadBytes
+                        val upload = stats.uploadBytes
+                        // ارسال فقط در صورت تغییر
+                        if (download != lastDownload || upload != lastUpload) {
+                            lastDownload = download
+                            lastUpload = upload
+                            sendTrafficBroadcast(download, upload)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Logger.e("Traffic monitoring error", e)
+                }
+                delay(1000) // هر ۱ ثانیه یکبار
+            }
+        }
+    }
+
+    private fun stopTrafficMonitoring() {
+        trafficJob?.cancel()
+        trafficJob = null
+    }
+
+    private fun sendTrafficBroadcast(download: Long, upload: Long) {
+        val intent = Intent(ACTION_TRAFFIC_UPDATE).apply {
+            putExtra(EXTRA_TRAFFIC_DOWNLOAD, download)
+            putExtra(EXTRA_TRAFFIC_UPLOAD, upload)
+        }
+        sendBroadcast(intent)
+    }
+
+    // ================== Status & Log Broadcasts ==================
+
+    private fun sendStatusBroadcast(isConnected: Boolean, error: String? = null) {
+        val intent = Intent(ACTION_STATUS_UPDATE).apply {
+            putExtra(EXTRA_IS_CONNECTED, isConnected)
+            error?.let { putExtra(EXTRA_ERROR_MESSAGE, it) }
+        }
+        sendBroadcast(intent)
+    }
+
+    private fun sendLogBroadcast(message: String, level: String = "INFO") {
+        val intent = Intent(ACTION_LOG_UPDATE).apply {
+            putExtra(EXTRA_LOG_MESSAGE, message)
+            putExtra(EXTRA_LOG_LEVEL, level)
+        }
+        sendBroadcast(intent)
+        when (level) {
+            "ERROR" -> Log.e(TAG, message)
+            "WARN" -> Log.w(TAG, message)
+            "SUCCESS" -> Log.i(TAG, "✅ $message")
+            else -> Log.i(TAG, message)
+        }
+    }
+
+    // ================== Notification ==================
 
     override fun protect(socket: Int): Boolean {
         if (killSwitchEnabled && !isRunning) {
@@ -341,6 +448,8 @@ class V2RayService : VpnService(), PlatformInterface {
     override fun onDestroy() {
         super.onDestroy()
         Logger.i("V2RayService onDestroy")
+        sendLogBroadcast("Service destroyed", "INFO")
+        stopTrafficMonitoring()
         stopVpn()
         serviceScope.cancel()
     }

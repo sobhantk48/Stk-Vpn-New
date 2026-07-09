@@ -46,8 +46,14 @@ data class FullBackupData(
 @Serializable
 data class LogEntry(
     val message: String,
-    val level: String, // INFO, WARN, ERROR, SUCCESS
+    val level: String,
     val timestamp: Long = System.currentTimeMillis()
+)
+
+@Serializable
+data class TrafficData(
+    val download: Long = 0,
+    val upload: Long = 0
 )
 
 sealed class BackupStatus {
@@ -93,6 +99,10 @@ class MainViewModel @Inject constructor(
     private val _logs = MutableStateFlow<List<LogEntry>>(emptyList())
     val logs: StateFlow<List<LogEntry>> = _logs.asStateFlow()
 
+    // ================== Traffic ==================
+    private val _traffic = MutableStateFlow<TrafficData>(TrafficData())
+    val traffic: StateFlow<TrafficData> = _traffic.asStateFlow()
+
     private var activity: MainActivity? = null
     private var currentProfile: Profile? = null
 
@@ -124,12 +134,19 @@ class MainViewModel @Inject constructor(
             val message = intent.getStringExtra(V2RayService.EXTRA_LOG_MESSAGE) ?: return
             val level = intent.getStringExtra(V2RayService.EXTRA_LOG_LEVEL) ?: "INFO"
             val entry = LogEntry(message, level)
-            // اضافه کردن لاگ جدید به ابتدای لیست (جدیدترین در بالا)
             _logs.value = listOf(entry) + _logs.value
-            // محدود کردن تعداد لاگ‌ها به ۱۰۰۰ تا
             if (_logs.value.size > 1000) {
                 _logs.value = _logs.value.take(1000)
             }
+        }
+    }
+
+    private val trafficReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action != V2RayService.ACTION_TRAFFIC_UPDATE) return
+            val download = intent.getLongExtra(V2RayService.EXTRA_TRAFFIC_DOWNLOAD, 0)
+            val upload = intent.getLongExtra(V2RayService.EXTRA_TRAFFIC_UPLOAD, 0)
+            _traffic.value = TrafficData(download, upload)
         }
     }
 
@@ -139,15 +156,15 @@ class MainViewModel @Inject constructor(
 
         val logFilter = IntentFilter(V2RayService.ACTION_LOG_UPDATE)
         context.registerReceiver(logReceiver, logFilter, Context.RECEIVER_NOT_EXPORTED)
+
+        val trafficFilter = IntentFilter(V2RayService.ACTION_TRAFFIC_UPDATE)
+        context.registerReceiver(trafficReceiver, trafficFilter, Context.RECEIVER_NOT_EXPORTED)
     }
 
     fun unregisterReceivers(context: Context) {
-        try {
-            context.unregisterReceiver(statusReceiver)
-        } catch (_: Exception) {}
-        try {
-            context.unregisterReceiver(logReceiver)
-        } catch (_: Exception) {}
+        try { context.unregisterReceiver(statusReceiver) } catch (_: Exception) {}
+        try { context.unregisterReceiver(logReceiver) } catch (_: Exception) {}
+        try { context.unregisterReceiver(trafficReceiver) } catch (_: Exception) {}
     }
 
     fun clearLogs() {

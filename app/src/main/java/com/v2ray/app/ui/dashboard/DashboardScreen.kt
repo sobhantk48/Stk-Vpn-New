@@ -17,6 +17,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.v2ray.app.data.Profile
 import com.v2ray.app.ui.theme.*
 import com.v2ray.app.viewmodel.MainViewModel
+import java.text.DecimalFormat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,14 +36,15 @@ fun DashboardScreen(
     val isConnected by vm.isConnected.collectAsStateWithLifecycle()
     val pings by vm.pings.collectAsStateWithLifecycle()
     val errorMessage by vm.errorMessage.collectAsStateWithLifecycle()
+    val traffic by vm.traffic.collectAsStateWithLifecycle()
 
     var showServerList by remember { mutableStateOf(false) }
     var sniTunnelEnabled by remember { mutableStateOf(false) }
     var frontingEnabled by remember { mutableStateOf(false) }
 
     val scaffoldState = rememberScaffoldState()
+    val decimalFormat = remember { DecimalFormat("#.##") }
 
-    // نمایش خطاها با Snackbar
     LaunchedEffect(errorMessage) {
         errorMessage?.let { msg ->
             scaffoldState.snackbarHostState.showSnackbar(
@@ -51,6 +53,16 @@ fun DashboardScreen(
                 duration = SnackbarDuration.Long
             )
             vm.clearError()
+        }
+    }
+
+    // فرمت‌کننده حجم
+    fun formatBytes(bytes: Long): String {
+        return when {
+            bytes >= 1024 * 1024 * 1024 -> "${decimalFormat.format(bytes / (1024.0 * 1024.0 * 1024.0))} GB"
+            bytes >= 1024 * 1024 -> "${decimalFormat.format(bytes / (1024.0 * 1024.0))} MB"
+            bytes >= 1024 -> "${decimalFormat.format(bytes / 1024.0)} KB"
+            else -> "$bytes B"
         }
     }
 
@@ -128,11 +140,19 @@ fun DashboardScreen(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("Download", color = WhiteText.copy(0.5f), fontSize = 12.sp)
-                            Text("125.6 MB", color = CyanAccent, fontSize = 16.sp)
+                            Text(
+                                text = formatBytes(traffic.download),
+                                color = CyanAccent,
+                                fontSize = 16.sp
+                            )
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("Upload", color = WhiteText.copy(0.5f), fontSize = 12.sp)
-                            Text("512 MB", color = CyanAccent, fontSize = 16.sp)
+                            Text(
+                                text = formatBytes(traffic.upload),
+                                color = CyanAccent,
+                                fontSize = 16.sp
+                            )
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("Ping", color = WhiteText.copy(0.5f), fontSize = 12.sp)
@@ -223,7 +243,7 @@ fun DashboardScreen(
                 }
             }
 
-            // لیست سرورها (قابل نمایش/مخفی‌سازی)
+            // لیست سرورها
             if (showServerList) {
                 Card(
                     modifier = Modifier
@@ -243,7 +263,7 @@ fun DashboardScreen(
                         ) {
                             items(
                                 items = profiles,
-                                key = { it.id }  // کلید منحصربه‌فرد برای هر آیتم
+                                key = { it.id }
                             ) { profile ->
                                 ServerListItem(
                                     profile = profile,

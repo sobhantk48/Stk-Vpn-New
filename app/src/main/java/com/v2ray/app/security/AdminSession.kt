@@ -1,26 +1,20 @@
 package com.v2ray.app.security
 
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import android.content.Context
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import java.security.MessageDigest
 
 object AdminSession {
-    private const val DEFAULT_PASSWORD = "1311"
-    private var currentPassword = DEFAULT_PASSWORD
-    private val _loggedIn = MutableStateFlow(false)
-    val loggedIn: StateFlow<Boolean> = _loggedIn
-
-    fun validatePassword(input: String): Boolean {
-        val result = input == currentPassword
-        return result
+    private const val DEFAULT_PASSWORD = "admin"
+    
+    // متد ساده برای چک کردن پسورد (بعداً می‌تونیم هش کنیم)
+    fun verifyPassword(input: String): Boolean {
+        return input == DEFAULT_PASSWORD
     }
 
-
-    fun changePassword(old: String, new: String): Boolean {
-        return if (old == currentPassword && new.length >= 4) {
-            currentPassword = new
-            true
-        } else {
-            false
-        }
+    // این بخش رو بعداً برای ذخیره امن پسورد جدید توسعه میدیم
+    fun changePassword(newPassword: String) {
+        // TODO: ذخیره در EncryptedSharedPreferences
     }
 }

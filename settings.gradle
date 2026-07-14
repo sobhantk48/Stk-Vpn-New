@@ -11,9 +11,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven { url = uri("https://maven.nekohasekai.me") }
     }
 }
 
-rootProject.name = "Stk-Vpn-New"
-include(":app")
-include(":core")
+rootProject.name = "Stkvpn"
+include ':app'
+include ':core'
